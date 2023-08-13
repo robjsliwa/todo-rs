@@ -18,38 +18,20 @@ impl std::fmt::Display for Error {
 impl Reject for Error {}
 
 pub async fn return_error(err: Rejection) -> Result<impl Reply, Rejection> {
-    println!("err: {:?}", err);
-    if let Some(error) = err.find::<Error>() {
-        println!("CHECK1");
+    let (code, message) = if let Some(error) = err.find::<Error>() {
         match error {
-            Error::NotFound => Ok(warp::reply::with_status(
-                "Not Found".to_string(),
-                StatusCode::NOT_FOUND,
-            )),
-            Error::InvalidId => Ok(warp::reply::with_status(
-                "Invalid ID".to_string(),
-                StatusCode::BAD_REQUEST,
-            )),
+            Error::InvalidId => (StatusCode::BAD_REQUEST, error.to_string()),
+            Error::NotFound => (StatusCode::NOT_FOUND, error.to_string()),
         }
     } else if let Some(error) = err.find::<BodyDeserializeError>() {
-        Ok(warp::reply::with_status(
-            error.to_string(),
-            StatusCode::UNPROCESSABLE_ENTITY,
-        ))
+        (StatusCode::UNPROCESSABLE_ENTITY, error.to_string())
     } else if let Some(_) = err.find::<warp::reject::MethodNotAllowed>() {
-        Ok(warp::reply::with_status(
-            "Method not allowed".to_string(),
-            StatusCode::METHOD_NOT_ALLOWED,
-        ))
+        (StatusCode::METHOD_NOT_ALLOWED, "Method not allowed".to_string())
     } else if err.is_not_found() {
-        Ok(warp::reply::with_status(
-            "Not found".to_string(),
-            StatusCode::NOT_FOUND,
-        ))
+        (StatusCode::NOT_FOUND, "Not found".to_string())
     } else {
-        Ok(warp::reply::with_status(
-            "Internal server error".to_string(),
-            StatusCode::INTERNAL_SERVER_ERROR,
-        ))
-    }
+        (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+    };
+
+    Ok(warp::reply::with_status(message, code))
 }
