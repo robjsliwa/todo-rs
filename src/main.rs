@@ -1,8 +1,6 @@
 use crate::object::Object;
 use crate::error::return_error;
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use crate::store::Store;
 use nanoid::nanoid;
 use warp::http::StatusCode;
 use warp::reply::json;
@@ -11,21 +9,9 @@ use warp::{Rejection, Reply};
 
 mod object;
 mod error;
+mod store;
 
-#[derive(Clone)]
-struct Store {
-    objects: Arc<RwLock<HashMap<String, Object>>>,
-}
-
-impl Store {
-    fn new() -> Self {
-        Store {
-            objects: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
-}
-
-fn valid_nanoid() -> impl warp::Filter<Extract = (String,), Error = warp::Rejection> + Clone {
+pub fn valid_nanoid() -> impl warp::Filter<Extract = (String,), Error = warp::Rejection> + Clone {
     warp::path::param()
         .and_then(|id: String| async move {
             if id.len() == 9 && id.chars().all(|c| c.is_ascii_alphanumeric()) {
@@ -35,7 +21,6 @@ fn valid_nanoid() -> impl warp::Filter<Extract = (String,), Error = warp::Reject
             }
         })
 }
-
 
 #[tokio::main]
 async fn main() {
