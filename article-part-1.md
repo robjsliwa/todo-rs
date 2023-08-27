@@ -4,7 +4,7 @@
 
 ## Introduction
 
-Greetings! It's been a while since I delved deep into the world of Rust. While I have been busy with other projects and languages, the call of the Rustacean inside me has been strong. So, I decided to refresh my Rust skills but I wanted to do more than just basic Rust project. I wanted to try to build a full application that deals with multi-tenancy, authentication and authorization and has both backend and frontend. In order to achieve that I decided to build a multi-tenant Todo server.
+Greetings! It's been a while since I delved deep into the world of Rust. While I have been busy with other projects and languages, the call of the Rustacean inside me has been strong. So, I decided to refresh my Rust skills but I wanted to do more than just basic Rust project. I wanted to try to build a full application that deals with multi-tenancy, authentication and authorization and has both backend and frontend. In order to achieve that I decided to build a multi-tenant Todo application.
 
 When we speak about a multi-tenant app, we refer to software that can serve multiple users, each with their own isolated data. In our case, each user will log in using OAuth 2.0 protocol. We will use Auth0 to help us with authentication. We will also build command line based client to interact with the backend. This article, however, will be a humble beginning. We'll be focusing on setting up a basic server that can:
 
@@ -43,7 +43,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 ```
 
-With the dependencies in place, we're ready to set up our server with Warp.
+With the dependencies in place, we're ready to set up our application server.
 
 ---
 
@@ -106,7 +106,7 @@ Let's build our route handlers:
 2. `get_objects_route`: Lists all stored objects.
 3. `add_object_route`: Adds a new object.
 
-Create main.rs file and for now add the following routes:
+Create main.rs file and for now add the following functions that will implement routes:
 
 ```rust
 // main.rs
