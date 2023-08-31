@@ -373,6 +373,173 @@ The server will respond with an `InvalidId` error.
 
 ---
 
+## Handling CORS
+
+By default, web browsers follow the "Same-Origin Policy," which only allows web pages to make requests to the same origin that served the web page. While this is good for security, it's often limiting when modern, complex web applications need to fetch data from multiple domains or sub-domains. CORS is the technology that allows servers to relax the Same-Origin Policy, granting the browser permission to expose the response to frontend JavaScript code even when the origin is different.
+
+If you try to access the server from a different domain, you'll notice that the server will reject the request. This is because of the same-origin policy. To allow cross-origin requests, we need to enable CORS.
+
+CORS, or Cross-Origin Resource Sharing, is a security feature implemented by web browsers to control web requests made across different origins. An origin consists of the protocol (HTTP/HTTPS), domain, and port from which a web page originates. 
+
+How does CORS work? When a browser detects a cross-origin request initiated by a frontend app, it automatically sets an HTTP Origin header in the request. The server then checks this header against its list of allowed origins. If the origin is allowed, the server sends a CORS header (Access-Control-Allow-Origin) in its response to indicate that the origin has permission. If the origin is not allowed, the server either doesn't include the CORS header, or explicitly denies the request, making the browser block the frontend code from accessing the resource. The server can also specify additional CORS headers to control other types of access, such as which HTTP methods are allowed or whether credentials can be included. CORS can be configured for simple requests, preflighted requests, and requests with credentials, each having its own set of headers and rules.
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Server
+    Browser->>Server: HTTP Request with Origin header
+    Note right of Server: Check Origin against allowed list
+    Server-->>Browser: HTTP Response with Access-Control-Allow-Origin
+    Note left of Browser: Verifies CORS header
+    Browser->>Browser: Proceed if origin is allowed
+```
+
+Fortunately enabling CORS in Warp is very easy. We just need to add define cors:
+
+```rust
+    let cors = warp::cors()
+        .allow_any_origin()
+        .allow_headers(vec!["User-Agent", "Content-Type"])
+        .allow_methods(&[Method::GET, Method::POST]);
+```
+
+and then add them to routes:
+
+```rust
+    let routes = get_object_route
+        .or(get_objects_route)
+        .or(add_object_route)
+        .with(cors)
+        .recover(return_error);
+```
+
+---
+
+## Data Persistence
+
+We've built a basic server that can handle requests and return responses. However, the data is stored in memory and not persisted anywhere. If we restart the server, all the data will be lost. In the next article, we'll explore how to persist data using a database but for now let's just write the data to a file.  This way, when we restart server it can read it back from the disk.
+
+### Reading Data
+
+Let's start with reading data in.  We can do this as part of the Storage initialization.  First add attribute to Storage for file path:
+
+```rust
+use std::process;
+
+.
+.
+.
+
+pub struct Store {
+    pub objects: Arc<RwLock<HashMap<String, Object>>>,
+    file_path: String,
+}
+
+impl Store {
+    pub fn new(file_path: String) -> Self {
+        Store {
+            objects: Arc::new(RwLock::new(Self::load(&file_path))),
+            file_path,
+        }
+    }
+```
+
+Notice in the `new` function we call `load` to read the data from the file.  We'll implement that next
+
+```rust
+    fn load(file_path: &str) -> HashMap<String, Object> {
+        match std::fs::read_to_string(file_path) {
+            Ok(file) => serde_json::from_str(&file).unwrap_or_else(|_| {
+                eprintln!("Failed to parse the JSON. Exiting...");
+                process::exit(1);
+            }),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // File not found, continue
+                HashMap::new()
+            }
+            Err(e) => {
+                eprintln!("An error occurred while reading the file: {}...", e);
+                process::exit(1);
+            }
+        }
+    }
+```
+
+This function will read the file and parse it into a HashMap.  If the file doesn't exist, it will return an empty HashMap.  If there is an error reading the file, it will print the error and exit the program.
+
+`eprintln!` is similar to `println!` except it prints to the standard error stream instead of standard output.  This is useful for printing errors.
+
+We need to also update main.rs to provide the path to the file we are going to use for storage:
+
+```rust
+    let store = Store::new("./data.json".to_string());
+```
+
+Now whenever service starts it will look for this file and load the data from it.  If the file doesn't exist, it will create an empty HashMap.  But how to we write the data to the file?
+
+### Writing Data
+
+To write data to the file we will code a `shutdown` function where will save all the data to the file.  `shutdown` will be called when the server is shutting down.
+
+Let's code `shutdown` first in the store.rs:
+
+```rust
+    pub async fn shutdown(&self) -> std::io::Result<()> {
+        let data = self.objects.read().await;
+        let json = serde_json::to_string(&*data).expect("Failed to save data!");
+        tokio::fs::write(&self.file_path, json).await
+    }
+```
+
+Now we need to call this function when we detect CTRL-C signal.  We can use `tokio::select!` to detect that condition:
+
+```rust
+    tokio::select! {
+        _ = warp::serve(routes).run(([127, 0, 0, 1], 3030)) => {
+            println!("Server started at http://localhost:3030");
+        }
+        _ = tokio::signal::ctrl_c() => {
+            println!("Ctrl-C received, shutting down...");
+            store.shutdown().await.unwrap();
+        }
+    }
+```
+
+So far so good, however, compiling the code will result in an error:
+
+```bash
+error[E0382]: borrow of moved value: `store`
+  --> src/main.rs:66:13
+   |
+27 |     let store = Store::new("./data.json".to_string());
+   |         ----- move occurs because `store` has type `Store`, which does not implement the `Copy` trait
+28 |     let store_filter = warp::any().map(move || store.clone());
+   |                                        ------- ----- variable moved due to use in closure
+   |                                        |
+   |                                        value moved into closure here
+...
+66 |             store.shutdown().await.unwrap();
+   |             ^^^^^^^^^^^^^^^^ value borrowed here after move
+
+For more information about this error, try `rustc --explain E0382`.
+```
+
+We can fix it by cloning the store before passing it to the closure:
+
+```rust
+async fn main() {
+    let store = Store::new("./data.json".to_string());
+    let store_for_routes = store.clone();
+    let store_filter = warp::any().map(move || store_for_routes.clone());
+    .
+    .
+    .
+```
+
+Now we can run the server and add objects.  When the server is shutdown, the data will be saved to the file.  If we restart the server, the data will be loaded from the file.
+
+---
+
 ## Conclusion
 
 In this part of the series, we've taken our first steps into building our multi-tenant Todo server. We set up the project, defined our object structure, implemented basic routes, and gracefully handled errors.

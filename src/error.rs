@@ -1,4 +1,4 @@
-use warp::{Rejection, Reply, reject::Reject, hyper::StatusCode, body::BodyDeserializeError};
+use warp::{body::BodyDeserializeError, hyper::StatusCode, reject::Reject, Rejection, Reply};
 
 #[derive(Debug)]
 pub enum Error {
@@ -25,12 +25,18 @@ pub async fn return_error(err: Rejection) -> Result<impl Reply, Rejection> {
         }
     } else if let Some(error) = err.find::<BodyDeserializeError>() {
         (StatusCode::UNPROCESSABLE_ENTITY, error.to_string())
-    } else if let Some(_) = err.find::<warp::reject::MethodNotAllowed>() {
-        (StatusCode::METHOD_NOT_ALLOWED, "Method not allowed".to_string())
+    } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
+        (
+            StatusCode::METHOD_NOT_ALLOWED,
+            "Method not allowed".to_string(),
+        )
     } else if err.is_not_found() {
         (StatusCode::NOT_FOUND, "Not found".to_string())
     } else {
-        (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal server error".to_string(),
+        )
     };
 
     Ok(warp::reply::with_status(message, code))
