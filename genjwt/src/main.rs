@@ -12,7 +12,7 @@ struct Args {
     tenant_id: String,
     #[arg(short, long)]
     user_id: String,
-    #[arg(short, long, default_value_t = 60)]
+    #[arg(short, long, default_value_t = 3600)]
     exp: usize,
 }
 
@@ -32,7 +32,7 @@ fn main() {
     let my_claims = Claims {
         tenant_id,
         user_id,
-        exp: (Utc::now() + chrono::Duration::minutes(duration as i64)).timestamp() as usize,
+        exp: (Utc::now() + chrono::Duration::seconds(duration as i64)).timestamp() as usize,
     };
 
     let key = args.secret;
