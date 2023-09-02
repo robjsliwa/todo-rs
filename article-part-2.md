@@ -171,3 +171,317 @@ If you type in the secret that we used to generate the token you should see that
 
 Now we are ready to start building Todo APIs and protect them with our JWT tokens.
 
+## Setting up the Project Structure
+
+As our project grows, it's essential to keep our codebase organized. To achieve this, we'll create separate folders for our routes, models, and storage logic. Create the following folders in your project:
+
+- routes/
+- model/
+- storage/
+
+Your directory structure should now look something like this:
+
+```bash
+src/
+├── routes/
+├── model/
+├── storage/
+├── main.rs
+└── ...
+```
+
+`routes` will contain all of our route handlers. `model` will contain our data models. `storage` will contain our storage logic.
+
+## Creating the Todo Model
+
+To make our application multi-tenant, we'll need to update our `Object` struct to a more meaningful `Todo` struct. The `Todo` struct will have the following fields:
+
+- id: A unique identifier for each todo item
+- tenant_id: Identifies the tenant to which this todo item belongs
+- user_id: Identifies the user within the tenant
+- task: The actual task description
+- completed: Whether the task is completed or not
+
+Create a new file named todo.rs inside the model/ folder and add the following code:
+
+```rust
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Todo {
+    pub id: String,
+    pub tenant_id: String,
+    pub user_id: String,
+    pub task: String,
+    pub completed: bool,
+}
+```
+
+## Decoupling Storage with Hexagonal Architecture
+
+### Motivation
+
+We've been building our Todo server using an in-memory storage so far.  While this is great for prototyping, it's obviously not suitable for production.  In the next article we will switch to using a database but right now we want to focus on decoupling our storage logic from the rest of the application so that we can easily switch between different storage implementations.  This is where [Hexagonal Architecture](https://en.wikipedia.org/wiki/Hexagonal_architecture_(software)) comes in.
+
+### What is Hexagonal Architecture?
+
+Hexagonal Architecture, also known as Ports and Adapters, allows us to decouple the core logic of our application from external concerns like storage, UI, and others. The main idea is to define clear contracts or interfaces that the core logic expects, and then implement these interfaces for each external concern (like storage).
+
+### Benefits of Hexagonal Architecture
+
+- **Ease of Testing**: By abstracting external concerns, we can easily mock them during testing.
+- **Flexibility**: We can easily replace one storage solution with another with minimal code changes.
+- **Separation of Concerns**: It helps to keep the core logic isolated, making the codebase easier to understand and maintain.
+
+### Our Implementation
+
+Let's start by defining contract/interface first.  In `storage` folder create new file called `store.rs` and add the following code:
+
+```rust
+use crate::error::Error;
+use crate::model::todo::{NewTodo, Todo};
+use async_trait::async_trait;
+
+pub struct UserContext {
+    pub tenant_id: String,
+    pub user_id: String,
+}
+
+#[async_trait]
+pub trait TodoStore {
+    async fn add_todo(&self, ctx: &UserContext, new_todo: NewTodo) -> Result<(), Error>;
+    async fn get_todo(&self, ctx: &UserContext, id: String) -> Result<Option<Todo>, Error>;
+    async fn get_todos(&self, ctx: &UserContext) -> Result<Vec<Todo>, Error>;
+    async fn update_todo(
+        &self,
+        ctx: &UserContext,
+        id: String,
+        completed: bool,
+    ) -> Result<Option<Todo>, Error>;
+    async fn delete_todo(
+        &self,
+        ctx: &UserContext,
+        id: String,
+    ) -> Result<Option<Todo>, Error>;
+}
+```
+
+Our interface is quite simple and defines the following methods:
+
+- `add_todo`: Adds a new todo item
+- 'get_todo`: Gets a todo item by id
+- `get_todos`: Gets all todo items
+- `update_todo`: Updates the completed status of a todo item
+- `delete_todo`: Deletes a todo item
+
+Notice that for all these functions we are passing a `UserContext` object.  This object contains the `tenant_id` and `user_id` of the user making the request.  This is how we will implement multi-tenancy.  We will use these values to filter the todo items by tenant and user.  We will get those values from the JWT token that the user will send with each request.
+
+Also for `add_todo` we need to provide `task` and `completed`.  We could pass this in as two parameters but if we were to ever extend todo to hold some more information the list of parameters will grow.  Let's just define `NewTodo` struct.  In `model\todo.rs` add following definition:
+
+```rust
+#[derive(Clone, Serialize, Deserialize)]
+pub struct NewTodo {
+    pub task: String,
+    pub completed: bool,
+}
+```
+
+We don't want to use `Todo` struct as we want server to define `id` rather then client.
+
+Notice that to implement our interface we used Rust's trait.
+
+### What is a Trait in Rust?
+
+In Rust, a trait is a way to group method signatures together to define a set of behaviors necessary for a particular purpose. Traits are similar to interfaces in languages like Java and C#. They allow us to write code that is agnostic to the specific types, as long as these types implement the methods defined in the trait.
+
+### Why `async_trait`?
+
+Rust's native trait system doesn't support asynchronous methods directly yet. To work around this, we use the `async_trait` crate that provides a procedural macro to enable async functions in traits. This allows us to define our storage operations as asynchronous, which is essential for IO-bound tasks like database operations.
+
+In order to use `async_trait` we need to add it to our `Cargo.toml` file:
+
+```toml
+[dependencies]
+.
+.
+.
+async-trait = "0.1.73"
+```
+
+### Implementing the Storage Interface
+
+We've defined a trait `TodoStore` in store.rs that serves as the contract for our storage solutions. Now we need to implement this trait for our in-memory storage solution.
+
+First move `store.rs` to `store\memstore.rs` and add implementation of `TodoStore` trait:
+
+```rust
+#[async_trait]
+impl TodoStore for MemStore {
+    async fn add_todo(&self, ctx: &UserContext, new_todo: NewTodo) -> Result<(), Error> {
+        ...
+    }
+
+    async fn get_todo(&self, ctx: &UserContext, id: String) -> Result<Option<Todo>, Error> {
+        ...
+    }
+
+    async fn get_todos(&self, ctx: &UserContext) -> Result<Vec<Todo>, Error> {
+        ...
+    }
+
+    async fn update_todo(
+        &self,
+        ctx: &UserContext,
+        id: String,
+        completed: bool,
+    ) -> Result<Option<Todo>, Error> {
+        ...
+    }
+
+    async fn delete_todo(
+        &self,
+        ctx: &UserContext,
+        id: String,
+    ) -> Result<Option<Todo>, Error> {
+        ...
+    }
+}
+```
+
+Here we took our old Store object and renamed it to MemStore and kept its implementation the same as before:
+
+```rust
+use crate::error::Error;
+use crate::model::todo::{NewTodo, Todo};
+use crate::storage::store::{TodoStore, UserContext};
+use async_trait::async_trait;
+use std::collections::HashMap;
+use std::process;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+#[derive(Clone)]
+pub struct MemStore {
+    pub objects: Arc<RwLock<HashMap<String, Todo>>>,
+    file_path: String,
+}
+
+impl MemStore {
+    pub fn new(file_path: String) -> Self {
+        MemStore {
+            objects: Arc::new(RwLock::new(Self::load(&file_path))),
+            file_path,
+        }
+    }
+
+    fn load(file_path: &str) -> HashMap<String, Todo> {
+        match std::fs::read_to_string(file_path) {
+            Ok(file) => serde_json::from_str(&file).unwrap_or_else(|_| {
+                eprintln!("Failed to parse the JSON. Exiting...");
+                process::exit(1);
+            }),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // File not found, continue
+                HashMap::new()
+            }
+            Err(e) => {
+                eprintln!("An error occurred while reading the file: {}...", e);
+                process::exit(1);
+            }
+        }
+    }
+
+    pub async fn shutdown(&self) -> std::io::Result<()> {
+        let data = self.objects.read().await;
+        let json = serde_json::to_string(&*data).expect("Failed to save data!");
+        tokio::fs::write(&self.file_path, json).await
+    }
+}
+```
+
+But then we added implementation of TodoStore trait.  Let's go over each method.
+
+#### Adding Todo Items
+
+The `add_todo` method is straightforward. We acquire a write lock on the in-memory data store, which is a HashMap, and insert the new Todo item. Note how we construct a new Todo object that includes the tenant_id and user_id from the UserContext.
+
+```rust
+    async fn add_todo(&self, ctx: &UserContext, new_todo: NewTodo) -> Result<(), Error> {
+        let mut data = self.objects.write().await;
+        let todo = Todo::new(ctx.tenant_id.clone(), ctx.user_id.clone(), new_todo);
+        data.insert(todo.id.clone(), todo);
+        Ok(())
+    }
+```
+
+#### Fetching Todo Items
+
+The `get_todo` and `get_todos` methods read from the data store, but they also filter results based on the tenant_id and user_id. This ensures that users only have access to their own data within their own tenant.
+
+```rust
+    async fn get_todo(&self, ctx: &UserContext, id: String) -> Result<Option<Todo>, Error> {
+        let data = self.objects.read().await;
+        let todo = data.get(&id).cloned();
+        if todo.is_some_and(|t| t.user_id != ctx.user_id || t.tenant_id != ctx.tenant_id) {
+            return Err(Error::Unauthorized);
+        }
+        Ok(data.get(&id).cloned())
+    }
+```
+
+and
+
+```rust
+    async fn get_todos(&self, ctx: &UserContext) -> Result<Vec<Todo>, Error> {
+        let data = self.objects.read().await;
+        let filtered_todos = data
+            .values()
+            .filter(|todo| todo.tenant_id == ctx.tenant_id && todo.user_id == ctx.user_id)
+            .cloned()
+            .collect::<Vec<Todo>>();
+        Ok(filtered_todos)
+    }
+```
+
+#### Updating and Deleting Todo Items
+
+Similar to fetching, the `update_todo` and `delete_todo` methods also check for user and tenant ownership before modifying or removing any Todo items.
+
+```rust
+    async fn update_todo(
+        &self,
+        ctx: &UserContext,
+        id: String,
+        completed: bool,
+    ) -> Result<Option<Todo>, Error> {
+        let mut data = self.objects.write().await;
+        if let Some(todo) = data.get_mut(&id) {
+            if todo.user_id != ctx.user_id || todo.tenant_id != ctx.tenant_id {
+                return Err(Error::Unauthorized);
+            }
+            todo.completed = completed;
+            Ok(Some(todo.clone()))
+        } else {
+            Ok(None)
+        }
+    }
+```
+
+and
+
+```rust
+    async fn delete_todo(&self, ctx: &UserContext, id: String) -> Result<Option<Todo>, Error> {
+        let mut data = self.objects.write().await;
+        if let Some(todo) = data.get(&id) {
+            if todo.tenant_id == ctx.tenant_id && todo.user_id == ctx.user_id {
+                return Ok(data.remove(&id));
+            }
+        }
+        Ok(None)
+    }
+```
+
+The above implementation showcases the power of Hexagonal Architecture. We've managed to encapsulate all storage-related operations within this MemStore class, which implements the TodoStore trait. This decoupling makes it easier to replace or extend our storage solutions in the future.
+
+## Implementing the Todo Service
+

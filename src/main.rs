@@ -1,7 +1,6 @@
 use crate::error::return_error;
-use crate::object::Object;
-use crate::store::Store;
-use nanoid::nanoid;
+use crate::model::todo::Todo;
+use crate::storage::store::TodoStore;
 use warp::{
     http::{Method, StatusCode},
     reply::json,
@@ -9,8 +8,8 @@ use warp::{
 };
 
 mod error;
-mod object;
-mod store;
+mod model;
+mod storage;
 
 pub fn valid_nanoid() -> impl warp::Filter<Extract = (String,), Error = warp::Rejection> + Clone {
     warp::path::param().and_then(|id: String| async move {
