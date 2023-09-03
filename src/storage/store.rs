@@ -8,7 +8,7 @@ pub struct UserContext {
 }
 
 #[async_trait]
-pub trait TodoStore {
+pub trait TodoStore: Send + Sync {
     async fn add_todo(&self, ctx: &UserContext, new_todo: NewTodo) -> Result<(), Error>;
     async fn get_todo(&self, ctx: &UserContext, id: String) -> Result<Option<Todo>, Error>;
     async fn get_todos(&self, ctx: &UserContext) -> Result<Vec<Todo>, Error>;
