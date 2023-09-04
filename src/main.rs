@@ -1,17 +1,20 @@
 use crate::error::return_error;
 use crate::routes::add_todo::add_todo;
 use crate::storage::{memstore::MemStore, store::TodoStore};
+use auth::with_jwt::with_jwt;
 use std::sync::Arc;
 use warp::{
     http::{Method, StatusCode},
     reply::json,
     Filter, Rejection, Reply,
 };
+use std::env;
 
 mod error;
 mod model;
 mod routes;
 mod storage;
+mod auth;
 
 pub fn valid_nanoid() -> impl warp::Filter<Extract = (String,), Error = warp::Rejection> + Clone {
     warp::path::param().and_then(|id: String| async move {
@@ -29,6 +32,8 @@ async fn main() {
     let store: Arc<dyn TodoStore> = Arc::new(mem_store.clone());
     let store_for_routes = store.clone();
     let store_filter = warp::any().map(move || store_for_routes.clone());
+    let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET environment variable not set");
+
 
     let cors = warp::cors()
         .allow_any_origin()
@@ -50,6 +55,7 @@ async fn main() {
 
     let add_todo_route = warp::post()
         .and(warp::path("todos"))
+        .and(with_jwt(jwt_secret.clone()))
         .and(store_filter.clone())
         .and(warp::body::json())
         .and_then(add_todo);

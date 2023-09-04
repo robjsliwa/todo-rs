@@ -2,6 +2,7 @@ use crate::error::Error;
 use crate::model::todo::{NewTodo, Todo};
 use async_trait::async_trait;
 
+#[derive(Debug)]
 pub struct UserContext {
     pub tenant_id: String,
     pub user_id: String,
