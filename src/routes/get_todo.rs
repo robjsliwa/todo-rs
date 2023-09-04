@@ -1,13 +1,12 @@
-use crate::model::todo::NewTodo;
 use crate::storage::store::{TodoStore, UserContext};
 use std::sync::Arc;
-use warp::http::StatusCode;
+use uuid::Uuid;
 
-pub async fn add_todo(
+pub async fn get_todo(
+    id: Uuid,
     user: UserContext,
     store: Arc<dyn TodoStore>,
-    new_todo: NewTodo,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    store.add_todo(&user, new_todo).await?;
-    Ok(StatusCode::CREATED)
+    let todo = store.get_todo(&user, id.to_string()).await?;
+    Ok(warp::reply::json(&todo))
 }

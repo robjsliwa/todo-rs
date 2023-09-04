@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::model::todo::{NewTodo, Todo};
+use crate::model::todo::{NewTodo, Todo, UpdateTodo};
 use crate::storage::store::{TodoStore, UserContext};
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -77,14 +77,21 @@ impl TodoStore for MemStore {
         &self,
         ctx: &UserContext,
         id: String,
-        completed: bool,
+        update_todo: UpdateTodo,
     ) -> Result<Option<Todo>, Error> {
         let mut data = self.objects.write().await;
         if let Some(todo) = data.get_mut(&id) {
             if todo.user_id != ctx.user_id || todo.tenant_id != ctx.tenant_id {
                 return Err(Error::Unauthorized);
             }
-            todo.completed = completed;
+            todo.completed = match update_todo.completed {
+                Some(completed) => completed,
+                None => todo.completed,
+            };
+            todo.task = match update_todo.task {
+                Some(task) => task,
+                None => todo.task.clone(),
+            };
             Ok(Some(todo.clone()))
         } else {
             Ok(None)

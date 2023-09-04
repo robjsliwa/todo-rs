@@ -27,3 +27,9 @@ pub struct NewTodo {
     pub task: String,
     pub completed: bool,
 }
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct UpdateTodo {
+    pub task: Option<String>,
+    pub completed: Option<bool>,
+}

@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::model::todo::{NewTodo, Todo};
+use crate::model::todo::{NewTodo, Todo, UpdateTodo};
 use async_trait::async_trait;
 
 #[derive(Debug)]
@@ -17,7 +17,7 @@ pub trait TodoStore: Send + Sync {
         &self,
         ctx: &UserContext,
         id: String,
-        completed: bool,
+        update_todo: UpdateTodo,
     ) -> Result<Option<Todo>, Error>;
     async fn delete_todo(&self, ctx: &UserContext, id: String) -> Result<Option<Todo>, Error>;
 }

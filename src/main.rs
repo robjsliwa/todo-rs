@@ -1,12 +1,11 @@
 use crate::error::return_error;
-use crate::routes::add_todo::add_todo;
+use crate::routes::{add_todo, get_todos, get_todo, update_todo, uuidv4_param};
 use crate::storage::{memstore::MemStore, store::TodoStore};
 use auth::with_jwt::with_jwt;
 use std::sync::Arc;
 use warp::{
-    http::{Method, StatusCode},
-    reply::json,
-    Filter, Rejection, Reply,
+    http::Method,
+    Filter,
 };
 use std::env;
 
@@ -31,38 +30,51 @@ async fn main() {
     let mem_store = MemStore::new("./data.json".to_string());
     let store: Arc<dyn TodoStore> = Arc::new(mem_store.clone());
     let store_for_routes = store.clone();
-    let store_filter = warp::any().map(move || store_for_routes.clone());
+    let with_store = warp::any().map(move || store_for_routes.clone());
     let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET environment variable not set");
 
 
     let cors = warp::cors()
         .allow_any_origin()
         .allow_headers(vec!["User-Agent", "Content-Type", "Authorization"])
-        .allow_methods(&[Method::GET, Method::POST]);
+        .allow_methods(&[Method::GET, Method::POST, Method::DELETE, Method::PATCH]);
 
-    // let get_object_route = warp::get()
-    //     .and(warp::path("objects"))
-    //     .and(valid_nanoid())
-    //     .and(warp::path::end())
-    //     .and(store_filter.clone())
-    //     .and_then(get_object_handler);
+    let get_todo_route = warp::get()
+        .and(warp::path("todos"))
+        .and(uuidv4_param())
+        .and(warp::path::end())
+        .and(with_jwt(jwt_secret.clone()))
+        .and(with_store.clone())
+        .and_then(get_todo);
 
-    // let get_objects_route = warp::get()
-    //     .and(warp::path("objects"))
-    //     .and(warp::path::end())
-    //     .and(store_filter.clone())
-    //     .and_then(get_objects_handler);
+    let get_todos_route = warp::get()
+        .and(warp::path("todos"))
+        .and(warp::path::end())
+        .and(with_jwt(jwt_secret.clone()))
+        .and(with_store.clone())
+        .and_then(get_todos);
 
     let add_todo_route = warp::post()
         .and(warp::path("todos"))
+        .and(warp::path::end())
         .and(with_jwt(jwt_secret.clone()))
-        .and(store_filter.clone())
+        .and(with_store.clone())
         .and(warp::body::json())
         .and_then(add_todo);
 
-    let routes = add_todo_route
-        // .or(get_objects_route)
-        // .or(add_object_route)
+    let update_todo_route = warp::patch()
+        .and(warp::path("todos"))
+        .and(uuidv4_param())
+        .and(warp::path::end())
+        .and(warp::body::json())
+        .and(with_jwt(jwt_secret.clone()))
+        .and(with_store.clone())
+        .and_then(update_todo);
+
+    let routes = get_todo_route
+        .or(get_todos_route)
+        .or(add_todo_route)
+        .or(update_todo_route)
         .with(cors)
         .recover(return_error);
 
