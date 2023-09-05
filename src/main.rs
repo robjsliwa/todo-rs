@@ -1,6 +1,16 @@
 use crate::error::return_error;
-use crate::routes::{add_todo, get_todos, get_todo, update_todo, uuidv4_param};
-use crate::storage::{memstore::MemStore, store::TodoStore};
+use crate::routes::{
+    add_todo,
+    get_todos,
+    get_todo,
+    update_todo,
+    delete_todo,
+    uuidv4_param
+};
+use crate::storage::{
+    memstore::MemStore,
+    store::TodoStore
+};
 use auth::with_jwt::with_jwt;
 use std::sync::Arc;
 use warp::{
@@ -71,10 +81,19 @@ async fn main() {
         .and(with_store.clone())
         .and_then(update_todo);
 
+    let delete_todo_route = warp::delete()
+        .and(warp::path("todos"))
+        .and(uuidv4_param())
+        .and(warp::path::end())
+        .and(with_jwt(jwt_secret.clone()))
+        .and(with_store.clone())
+        .and_then(delete_todo);
+
     let routes = get_todo_route
         .or(get_todos_route)
         .or(add_todo_route)
         .or(update_todo_route)
+        .or(delete_todo_route)
         .with(cors)
         .recover(return_error);
 
@@ -88,29 +107,3 @@ async fn main() {
         }
     }
 }
-
-// async fn get_object_handler(id: String, store: Store) -> Result<impl Reply, Rejection> {
-//     let objects = store.objects.read().await;
-//     let object = objects.get(&id);
-//     match object {
-//         Some(value) => Ok(json(&value)),
-//         None => Err(warp::reject::custom(error::Error::NotFound)),
-//     }
-// }
-
-// async fn get_objects_handler(store: Store) -> Result<impl Reply, Rejection> {
-//     let objects = store.objects.read().await;
-//     let values: Vec<Object> = objects.values().cloned().collect();
-//     Ok(json(&values))
-// }
-
-// async fn add_object_handler(store: Store, obj: serde_json::Value) -> Result<impl Reply, Rejection> {
-//     let mut objects = store.objects.write().await;
-//     let id = nanoid!(9);
-//     let store_obj = Object {
-//         id: id.clone(),
-//         value: obj,
-//     };
-//     objects.insert(id, store_obj);
-//     Ok(StatusCode::CREATED)
-// }
