@@ -56,11 +56,13 @@ impl TodoStore for MemStore {
 
     async fn get_todo(&self, ctx: &UserContext, id: String) -> Result<Option<Todo>, Error> {
         let data = self.objects.read().await;
-        let todo = data.get(&id).cloned();
-        if todo.is_some_and(|t| t.user_id != ctx.user_id || t.tenant_id != ctx.tenant_id) {
-            return Err(Error::Unauthorized);
+        if let Some(todo) = data.get(&id) {
+            if todo.user_id != ctx.user_id || todo.tenant_id != ctx.tenant_id {
+                return Err(Error::Unauthorized);
+            }
+            return Ok(Some(todo.clone()))
         }
-        Ok(data.get(&id).cloned())
+        Err(Error::NotFound)
     }
 
     async fn get_todos(&self, ctx: &UserContext) -> Result<Vec<Todo>, Error> {
@@ -94,7 +96,7 @@ impl TodoStore for MemStore {
             };
             Ok(Some(todo.clone()))
         } else {
-            Ok(None)
+            Err(Error::NotFound)
         }
     }
 
@@ -105,6 +107,6 @@ impl TodoStore for MemStore {
                 return Ok(data.remove(&id));
             }
         }
-        Ok(None)
+        Err(Error::NotFound)
     }
 }
