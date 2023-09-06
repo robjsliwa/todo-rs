@@ -2,7 +2,6 @@ use warp::{body::BodyDeserializeError, hyper::StatusCode, reject::Reject, Reject
 
 #[derive(Debug, Clone)]
 pub enum Error {
-    InvalidId,
     NotFound,
     Unauthorized,
     InvalidToken,
@@ -11,7 +10,6 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Error::InvalidId => write!(f, "Invalid ID"),
             Error::NotFound => write!(f, "Not found"),
             Error::Unauthorized => write!(f, "Unauthorized"),
             Error::InvalidToken => write!(f, "Invalid token"),
@@ -22,10 +20,8 @@ impl std::fmt::Display for Error {
 impl Reject for Error {}
 
 pub async fn return_error(err: Rejection) -> Result<impl Reply, Rejection> {
-    println!("err: {:?}", err);
     let (code, message) = if let Some(error) = err.find::<Error>() {
         match error {
-            Error::InvalidId => (StatusCode::BAD_REQUEST, error.to_string()),
             Error::NotFound => (StatusCode::NOT_FOUND, error.to_string()),
             Error::Unauthorized => (StatusCode::UNAUTHORIZED, error.to_string()),
             Error::InvalidToken => (StatusCode::UNAUTHORIZED, error.to_string()),

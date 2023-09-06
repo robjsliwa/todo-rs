@@ -5,7 +5,6 @@ use crate::routes::{
     get_todo,
     update_todo,
     delete_todo,
-    uuidv4_param
 };
 use crate::storage::{
     memstore::MemStore,
@@ -18,6 +17,7 @@ use warp::{
     Filter,
 };
 use std::env;
+use uuid::Uuid;
 
 mod error;
 mod model;
@@ -25,19 +25,11 @@ mod routes;
 mod storage;
 mod auth;
 
-pub fn valid_nanoid() -> impl warp::Filter<Extract = (String,), Error = warp::Rejection> + Clone {
-    warp::path::param().and_then(|id: String| async move {
-        if id.len() == 9 && id.chars().all(|c| c.is_ascii_alphanumeric()) {
-            Ok(id)
-        } else {
-            Err(warp::reject::custom(error::Error::InvalidId))
-        }
-    })
-}
-
 #[tokio::main]
 async fn main() {
-    let mem_store = MemStore::new("./data.json".to_string());
+    let mem_store = MemStore::new(
+        env::var("MEMSTORE_PATH").expect("MEMSTORE_PATH environment variable not set"),
+    );
     let store: Arc<dyn TodoStore> = Arc::new(mem_store.clone());
     let store_for_routes = store.clone();
     let with_store = warp::any().map(move || store_for_routes.clone());
@@ -50,8 +42,7 @@ async fn main() {
         .allow_methods(&[Method::GET, Method::POST, Method::DELETE, Method::PATCH]);
 
     let get_todo_route = warp::get()
-        .and(warp::path("todos"))
-        .and(uuidv4_param())
+        .and(warp::path!("todos" / Uuid))
         .and(warp::path::end())
         .and(with_jwt(jwt_secret.clone()))
         .and(with_store.clone())
@@ -73,8 +64,7 @@ async fn main() {
         .and_then(add_todo);
 
     let update_todo_route = warp::patch()
-        .and(warp::path("todos"))
-        .and(uuidv4_param())
+        .and(warp::path!("todos" / Uuid))
         .and(warp::path::end())
         .and(warp::body::json())
         .and(with_jwt(jwt_secret.clone()))
@@ -82,8 +72,7 @@ async fn main() {
         .and_then(update_todo);
 
     let delete_todo_route = warp::delete()
-        .and(warp::path("todos"))
-        .and(uuidv4_param())
+        .and(warp::path!("todos" / Uuid))
         .and(warp::path::end())
         .and(with_jwt(jwt_secret.clone()))
         .and(with_store.clone())
