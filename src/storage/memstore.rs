@@ -60,7 +60,7 @@ impl TodoStore for MemStore {
             if todo.user_id != ctx.user_id || todo.tenant_id != ctx.tenant_id {
                 return Err(Error::Unauthorized);
             }
-            return Ok(Some(todo.clone()))
+            return Ok(Some(todo.clone()));
         }
         Err(Error::NotFound)
     }
@@ -129,10 +129,9 @@ mod tests {
         let todos = store.get_todos(&ctx).await.unwrap();
         assert_eq!(todos.len(), 1);
         assert_eq!(todos[0].task, "test");
-        assert_eq!(todos[0].completed, false);
+        assert!(!todos[0].completed);
         assert_eq!(todos[0].user_id, "user");
         assert_eq!(todos[0].tenant_id, "tenant");
-        // store.shutdown().await.unwrap();
     }
 
     #[tokio::test]
@@ -152,10 +151,9 @@ mod tests {
         assert_eq!(todos.len(), 1);
         let todo = store.get_todo(&ctx, todos[0].id.clone()).await.unwrap();
         assert_eq!(todo.as_ref().unwrap().task, "test");
-        assert_eq!(todo.as_ref().unwrap().completed, false);
+        assert!(!todo.as_ref().unwrap().completed);
         assert_eq!(todo.as_ref().unwrap().user_id, "user");
         assert_eq!(todo.as_ref().unwrap().tenant_id, "tenant");
-        // store.shutdown().await.unwrap();
     }
 
     #[tokio::test]
@@ -183,16 +181,15 @@ mod tests {
         let todos = store.get_todos(&ctx).await.unwrap();
         assert_eq!(todos.len(), 1);
         assert_eq!(todos[0].task, "test");
-        assert_eq!(todos[0].completed, false);
+        assert!(!todos[0].completed);
         assert_eq!(todos[0].user_id, "user");
         assert_eq!(todos[0].tenant_id, "tenant");
         let todos2 = store.get_todos(&ctx2).await.unwrap();
         assert_eq!(todos2.len(), 1);
         assert_eq!(todos2[0].task, "test2");
-        assert_eq!(todos2[0].completed, false);
+        assert!(!todos2[0].completed);
         assert_eq!(todos2[0].user_id, "user2");
         assert_eq!(todos2[0].tenant_id, "tenant");
-        // store.shutdown().await.unwrap();
     }
 
     #[tokio::test]
@@ -219,10 +216,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(todo.as_ref().unwrap().task, "test2");
-        assert_eq!(todo.as_ref().unwrap().completed, true);
+        assert!(todo.as_ref().unwrap().completed);
         assert_eq!(todo.as_ref().unwrap().user_id, "user");
         assert_eq!(todo.as_ref().unwrap().tenant_id, "tenant");
-        // store.shutdown().await.unwrap();
     }
 
     #[tokio::test]
@@ -240,12 +236,9 @@ mod tests {
         store.add_todo(&ctx, new_todo).await.unwrap();
         let todos = store.get_todos(&ctx).await.unwrap();
         assert_eq!(todos.len(), 1);
-        let todo = store
-            .delete_todo(&ctx, todos[0].id.clone())
-            .await
-            .unwrap();
+        let todo = store.delete_todo(&ctx, todos[0].id.clone()).await.unwrap();
         assert_eq!(todo.as_ref().unwrap().task, "test");
-        assert_eq!(todo.as_ref().unwrap().completed, false);
+        assert!(!todo.as_ref().unwrap().completed);
         assert_eq!(todo.as_ref().unwrap().user_id, "user");
         assert_eq!(todo.as_ref().unwrap().tenant_id, "tenant");
         let todos = store.get_todos(&ctx).await.unwrap();
@@ -271,9 +264,7 @@ mod tests {
             tenant_id: "tenant".to_string(),
             user_id: "user2".to_string(),
         };
-        let expected_result = store
-            .delete_todo(&ctx2, todos[0].id.clone())
-            .await;
+        let expected_result = store.delete_todo(&ctx2, todos[0].id.clone()).await;
         assert_eq!(expected_result, Err(Error::NotFound));
         let todos = store.get_todos(&ctx).await.unwrap();
         assert_eq!(todos.len(), 1);

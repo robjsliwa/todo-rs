@@ -17,9 +17,7 @@ async fn main() {
     );
     let store: Arc<dyn TodoStore> = Arc::new(mem_store.clone());
     let store_for_routes = store.clone();
-    // let with_store = warp::any().map(move || store.clone());
     let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET environment variable not set");
-    // let with_jwt = with_jwt(jwt_secret.clone());
 
     tokio::select! {
         _ = warp::serve(router(store_for_routes, with_jwt(jwt_secret))).run(([127, 0, 0, 1], 3030)) => {

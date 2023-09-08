@@ -985,3 +985,722 @@ Note: Unnecessary use of -X or --request, GET is already inferred.
 * Connection #0 to host localhost left intact
 Not found
 ```
+
+## Unit Tests
+
+Running tests with curl was great for manual testing, but this can get tedious quickly. Let's write some unit tests to automate this process.
+
+First let's add some tests for `MemStore`.  Open storage/memstore.rs and add the following tests:
+
+```rust
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn test_add_todo() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        assert_eq!(todos[0].task, "test");
+        assert!(!todos[0].completed);
+        assert_eq!(todos[0].user_id, "user");
+        assert_eq!(todos[0].tenant_id, "tenant");
+    }
+
+    #[tokio::test]
+    async fn test_get_todo() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        let todo = store.get_todo(&ctx, todos[0].id.clone()).await.unwrap();
+        assert_eq!(todo.as_ref().unwrap().task, "test");
+        assert!(!todo.as_ref().unwrap().completed);
+        assert_eq!(todo.as_ref().unwrap().user_id, "user");
+        assert_eq!(todo.as_ref().unwrap().tenant_id, "tenant");
+    }
+
+    #[tokio::test]
+    async fn test_get_todos() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let ctx2 = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user2".to_string(),
+        };
+        let new_todo2 = NewTodo {
+            task: "test2".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx2, new_todo2).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        assert_eq!(todos[0].task, "test");
+        assert!(!todos[0].completed);
+        assert_eq!(todos[0].user_id, "user");
+        assert_eq!(todos[0].tenant_id, "tenant");
+        let todos2 = store.get_todos(&ctx2).await.unwrap();
+        assert_eq!(todos2.len(), 1);
+        assert_eq!(todos2[0].task, "test2");
+        assert!(!todos2[0].completed);
+        assert_eq!(todos2[0].user_id, "user2");
+        assert_eq!(todos2[0].tenant_id, "tenant");
+    }
+
+    #[tokio::test]
+    async fn test_update_todo() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        let update_todo = UpdateTodo {
+            task: Some("test2".to_string()),
+            completed: Some(true),
+        };
+        let todo = store
+            .update_todo(&ctx, todos[0].id.clone(), update_todo)
+            .await
+            .unwrap();
+        assert_eq!(todo.as_ref().unwrap().task, "test2");
+        assert!(todo.as_ref().unwrap().completed);
+        assert_eq!(todo.as_ref().unwrap().user_id, "user");
+        assert_eq!(todo.as_ref().unwrap().tenant_id, "tenant");
+    }
+
+    #[tokio::test]
+    async fn test_delete_todo() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        let todo = store.delete_todo(&ctx, todos[0].id.clone()).await.unwrap();
+        assert_eq!(todo.as_ref().unwrap().task, "test");
+        assert!(!todo.as_ref().unwrap().completed);
+        assert_eq!(todo.as_ref().unwrap().user_id, "user");
+        assert_eq!(todo.as_ref().unwrap().tenant_id, "tenant");
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_delete_todo_not_found() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        let ctx2 = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user2".to_string(),
+        };
+        let expected_result = store.delete_todo(&ctx2, todos[0].id.clone()).await;
+        assert_eq!(expected_result, Err(Error::NotFound));
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_update_todo_unauthorized() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        let ctx2 = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user2".to_string(),
+        };
+        let update_todo = UpdateTodo {
+            task: Some("test2".to_string()),
+            completed: Some(true),
+        };
+        let expected_result = store
+            .update_todo(&ctx2, todos[0].id.clone(), update_todo)
+            .await;
+        assert_eq!(expected_result, Err(Error::Unauthorized));
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_todo_not_found() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let ctx2 = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user2".to_string(),
+        };
+        let expected_result = store.get_todo(&ctx2, "test".to_string()).await;
+        assert_eq!(expected_result, Err(Error::NotFound));
+    }
+
+    #[tokio::test]
+    async fn test_get_todos_not_found() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx2 = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user2".to_string(),
+        };
+        let todos = store.get_todos(&ctx2).await.unwrap();
+        assert_eq!(todos.len(), 0);
+    }
+}
+```
+
+### Understanding the Tests
+
+1. **Testing the Addition of a Todo Item**
+The test_add_todo function verifies the ability to add a new todo item to the store. By asserting that the todo list length is one and that the values match the input, we confirm that the addition operation works as expected.
+
+2. **Retrieving a Specific Todo Item**
+In test_get_todo, we evaluate the functionality to retrieve a specific todo item by its ID. We first add a new todo to the store and then fetch it, asserting that the fetched values match the inserted values, thereby validating the retrieval mechanism.
+
+3. **Retrieving All Todos for a Specific User**
+The test_get_todos function checks the functionality of retrieving all todos of a particular user. It adds todos for two different users and fetches them separately, verifying that the todos are filtered correctly based on the user context.
+
+4. **Updating a Todo Item**
+test_update_todo function checks whether a todo item can be updated successfully. After adding a new todo, it updates the task and completion status, and asserts that the updates are reflected in the store, validating the update mechanism.
+
+5. **Deleting a Todo Item**
+In test_delete_todo, we test the deletion mechanism by adding a new todo and then deleting it. By asserting that the todo list is empty after deletion, we verify that the delete operation functions correctly.
+
+### Error Scenarios
+
+Aside from successful cases, we also need to handle error scenarios. In this suite, we have tests that check for unauthorized access (**test_update_todo_unauthorized**), not found errors (**test_delete_todo_not_found**, **test_get_todo_not_found**), and a case where no todos are found for a user (**test_get_todos_not_found**).
+
+To run these tests execute command:
+
+```bash
+cargo test
+```
+
+## Testing the API
+
+Testing MemStore was easy because we could directly call the functions and assert the results. However, in a real-world application, we would be using the store through the API. Therefore, we need to test the API as well.
+
+The main challenge that we will face testing the APIs is that it requires database connection and JWT access tokens.  This is inconvenient when running unit tests from command line and from CI/CD pipelines.  
+
+We are in luck however, as we abstracted our database and we can use MemStore for our testing instead of real database.  Well, at this point we are using MemStore for the server too but we will take care of that in the next part of this series.
+
+Now to deal with JWT.  We handle JWT processing using Warp filter so what we can do is create `with_mock_jwt` filter that will return `UserContext` we provide for testing purposes.  The only problem with that is that we don't have a convenient way to inject `with_mock_jwt` filter into the router.
+
+We can easily take care of it by refactoring our router code out of main.rs into its own function.  Let's start with that.  Add new file `routes/router.rs` with the following content:
+
+```rust
+use super::*;
+use crate::error::return_error;
+use crate::storage::TodoStore;
+use crate::storage::UserContext;
+use std::sync::Arc;
+use uuid::Uuid;
+use warp::{http::Method, Filter, Rejection};
+
+pub fn router(
+    store: Arc<dyn TodoStore>,
+    with_jwt: impl Filter<Extract = (UserContext,), Error = Rejection> + Clone + Send + Sync + 'static,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    let with_store = warp::any().map(move || store.clone());
+
+    let cors = warp::cors()
+        .allow_any_origin()
+        .allow_headers(vec!["User-Agent", "Content-Type", "Authorization"])
+        .allow_methods(&[Method::GET, Method::POST, Method::DELETE, Method::PATCH]);
+
+    let get_todo_route = warp::get()
+        .and(warp::path!("todos" / Uuid))
+        .and(warp::path::end())
+        .and(with_jwt.clone())
+        .and(with_store.clone())
+        .and_then(get_todo);
+
+    let get_todos_route = warp::get()
+        .and(warp::path("todos"))
+        .and(warp::path::end())
+        .and(with_jwt.clone())
+        .and(with_store.clone())
+        .and_then(get_todos);
+
+    let add_todo_route = warp::post()
+        .and(warp::path("todos"))
+        .and(warp::path::end())
+        .and(with_jwt.clone())
+        .and(with_store.clone())
+        .and(warp::body::json())
+        .and_then(add_todo);
+
+    let update_todo_route = warp::patch()
+        .and(warp::path!("todos" / Uuid))
+        .and(warp::path::end())
+        .and(warp::body::json())
+        .and(with_jwt.clone())
+        .and(with_store.clone())
+        .and_then(update_todo);
+
+    let delete_todo_route = warp::delete()
+        .and(warp::path!("todos" / Uuid))
+        .and(warp::path::end())
+        .and(with_jwt)
+        .and(with_store.clone())
+        .and_then(delete_todo);
+
+    get_todo_route
+        .or(get_todos_route)
+        .or(add_todo_route)
+        .or(update_todo_route)
+        .or(delete_todo_route)
+        .with(cors)
+        .recover(return_error)
+}
+```
+
+Basically, we took all of the router related code out of main.rs and wrapped in `router` function that accepts database store and JWT filter as parameters.
+
+Here is how we call it from main.rs:
+
+```rust
+async fn main() {
+    let mem_store = MemStore::new(
+        env::var("MEMSTORE_PATH").expect("MEMSTORE_PATH environment variable not set"),
+    );
+    let store: Arc<dyn TodoStore> = Arc::new(mem_store.clone());
+    let store_for_routes = store.clone();
+    let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET environment variable not set");
+
+    tokio::select! {
+        _ = warp::serve(router(store_for_routes, with_jwt(jwt_secret))).run(([127, 0, 0, 1], 3030)) => {
+            println!("Server started at http://localhost:3030");
+        }
+        _ = tokio::signal::ctrl_c() => {
+            println!("Ctrl-C received, shutting down...");
+            mem_store.shutdown().await.unwrap();
+        }
+    }
+}
+```
+
+With all these changes in place we can now write tests for our API.  Let's add our tests to `routes/router.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use crate::error::Error;
+    use crate::model::Todo;
+    use crate::storage::UserContext;
+    use std::sync::Arc;
+    use warp::{http::HeaderMap, reject, Filter, Rejection};
+
+    fn with_mock_jwt(
+        user_context: UserContext,
+        is_valid: bool,
+    ) -> impl Filter<Extract = (UserContext,), Error = Rejection> + Clone {
+        warp::header::headers_cloned()
+            .map(move |headers: HeaderMap| (headers.clone(), user_context.clone(), is_valid))
+            .and_then(
+                |(_headers, user_context, is_valid): (HeaderMap, UserContext, bool)| async move {
+                    match is_valid {
+                        true => Ok(user_context),
+                        false => Err(reject::custom(Error::InvalidToken)),
+                    }
+                },
+            )
+    }
+
+    #[tokio::test]
+    async fn test_add_todo() {
+        let store = Arc::new(crate::storage::MemStore::new("test.json".to_string()));
+        let user_context = UserContext {
+            tenant_id: "1".to_string(),
+            user_id: "1".to_string(),
+        };
+        let route = super::router(store, with_mock_jwt(user_context, true));
+        let resp = warp::test::request()
+            .method("POST")
+            .path("/todos")
+            .json(&serde_json::json!({
+                "task": "test task 1",
+                "completed": false
+            }))
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 201);
+    }
+
+    #[tokio::test]
+    async fn test_get_todos() {
+        let store = Arc::new(crate::storage::MemStore::new("test.json".to_string()));
+        let user_context = UserContext {
+            tenant_id: "1".to_string(),
+            user_id: "1".to_string(),
+        };
+        let route = super::router(store, with_mock_jwt(user_context, true));
+
+        let resp = warp::test::request()
+            .method("POST")
+            .path("/todos")
+            .json(&serde_json::json!({
+                "task": "test task 1",
+                "completed": false
+            }))
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 201);
+
+        let resp = warp::test::request()
+            .method("POST")
+            .path("/todos")
+            .json(&serde_json::json!({
+                "task": "test task 2",
+                "completed": false
+            }))
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 201);
+
+        let resp = warp::test::request()
+            .method("GET")
+            .path("/todos")
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 200);
+        let body = resp.body();
+        let todos: Vec<Todo> = serde_json::from_slice(body).unwrap();
+        assert_eq!(todos.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_get_todo_not_found() {
+        let store = Arc::new(crate::storage::MemStore::new("test.json".to_string()));
+        let user_context = UserContext {
+            tenant_id: "1".to_string(),
+            user_id: "1".to_string(),
+        };
+        let route = super::router(store, with_mock_jwt(user_context, true));
+        let resp = warp::test::request()
+            .method("GET")
+            .path("/todos/00000000-0000-0000-0000-000000000000")
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 404);
+    }
+
+    #[tokio::test]
+    async fn test_get_todo() {
+        let store = Arc::new(crate::storage::MemStore::new("test.json".to_string()));
+        let user_context = UserContext {
+            tenant_id: "1".to_string(),
+            user_id: "1".to_string(),
+        };
+        let route = super::router(store, with_mock_jwt(user_context, true));
+
+        let resp = warp::test::request()
+            .method("POST")
+            .path("/todos")
+            .json(&serde_json::json!({
+                "task": "test task 1",
+                "completed": false
+            }))
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 201);
+
+        let resp = warp::test::request()
+            .method("GET")
+            .path("/todos")
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 200);
+        let body = resp.body();
+        let todos: Vec<Todo> = serde_json::from_slice(body).unwrap();
+        assert_eq!(todos.len(), 1);
+        let id = todos[0].id.clone();
+
+        let resp = warp::test::request()
+            .method("POST")
+            .path("/todos")
+            .json(&serde_json::json!({
+                "task": "test task 2",
+                "completed": false
+            }))
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 201);
+
+        let resp = warp::test::request()
+            .method("GET")
+            .path(&format!("/todos/{}", id))
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 200);
+        let body = resp.body();
+        let todo: Todo = serde_json::from_slice(body).unwrap();
+        assert_eq!(todo.id, id);
+        assert_eq!(todo.task, "test task 1");
+    }
+
+    #[tokio::test]
+    async fn test_update_todo_not_found() {
+        let store = Arc::new(crate::storage::MemStore::new("test.json".to_string()));
+        let user_context = UserContext {
+            tenant_id: "1".to_string(),
+            user_id: "1".to_string(),
+        };
+        let route = super::router(store, with_mock_jwt(user_context, true));
+        let resp = warp::test::request()
+            .method("PATCH")
+            .path("/todos/00000000-0000-0000-0000-000000000000")
+            .json(&serde_json::json!({
+                "task": "test task 1",
+                "completed": false
+            }))
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 404);
+    }
+
+    #[tokio::test]
+    async fn test_update_todo() {
+        let store = Arc::new(crate::storage::MemStore::new("test.json".to_string()));
+        let user_context = UserContext {
+            tenant_id: "1".to_string(),
+            user_id: "1".to_string(),
+        };
+        let route = super::router(store, with_mock_jwt(user_context, true));
+
+        let resp = warp::test::request()
+            .method("POST")
+            .path("/todos")
+            .json(&serde_json::json!({
+                "task": "test task 1",
+                "completed": false
+            }))
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 201);
+
+        let resp = warp::test::request()
+            .method("GET")
+            .path("/todos")
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 200);
+        let body = resp.body();
+        let todos: Vec<Todo> = serde_json::from_slice(body).unwrap();
+        assert_eq!(todos.len(), 1);
+        let id = todos[0].id.clone();
+
+        let resp = warp::test::request()
+            .method("PATCH")
+            .path(&format!("/todos/{}", id))
+            .json(&serde_json::json!({
+                "task": "test task 1",
+                "completed": true
+            }))
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 200);
+        let body = resp.body();
+        let todo: Todo = serde_json::from_slice(body).unwrap();
+        assert_eq!(todo.id, id);
+        assert_eq!(todo.task, "test task 1");
+        assert!(todo.completed);
+    }
+
+    #[tokio::test]
+    async fn test_delete_todo_not_found() {
+        let store = Arc::new(crate::storage::MemStore::new("test.json".to_string()));
+        let user_context = UserContext {
+            tenant_id: "1".to_string(),
+            user_id: "1".to_string(),
+        };
+        let route = super::router(store, with_mock_jwt(user_context, true));
+        let resp = warp::test::request()
+            .method("DELETE")
+            .path("/todos/00000000-0000-0000-0000-000000000000")
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 404);
+    }
+
+    #[tokio::test]
+    async fn test_delete_todo() {
+        let store = Arc::new(crate::storage::MemStore::new("test.json".to_string()));
+        let user_context = UserContext {
+            tenant_id: "1".to_string(),
+            user_id: "1".to_string(),
+        };
+        let route = super::router(store, with_mock_jwt(user_context, true));
+
+        let resp = warp::test::request()
+            .method("POST")
+            .path("/todos")
+            .json(&serde_json::json!({
+                "task": "test task 1",
+                "completed": false
+            }))
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 201);
+
+        let resp = warp::test::request()
+            .method("GET")
+            .path("/todos")
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 200);
+        let body = resp.body();
+        let todos: Vec<Todo> = serde_json::from_slice(body).unwrap();
+        assert_eq!(todos.len(), 1);
+        let id = todos[0].id.clone();
+
+        let resp = warp::test::request()
+            .method("DELETE")
+            .path(&format!("/todos/{}", id))
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 204);
+
+        let resp = warp::test::request()
+            .method("GET")
+            .path("/todos")
+            .reply(&route)
+            .await;
+        assert_eq!(resp.status(), 200);
+        let body = resp.body();
+        let todos: Vec<Todo> = serde_json::from_slice(body).unwrap();
+        assert_eq!(todos.len(), 0);
+    }
+}
+```
+
+Here we use `tokio` and Warp test framework for testing.
+
+1. **test_add_todo**
+Description: This test is checking the functionality of the add_todo method. It creates a new todo item and adds it to the memory store. Then, it retrieves the list of todo items for the user and verifies that the added item is present and has the correct properties.
+
+2. **test_get_todo**
+Description: This test verifies the functionality of the get_todo method. After adding a new todo item, it retrieves the same item using its ID and validates that the retrieved item has the correct properties.
+
+3. **test_get_todos**
+Description: This test is designed to check the get_todos method, which should return all todo items for a specific user. It adds two todo items with different user IDs and checks if the get_todos method is filtering todos based on the user ID correctly.
+
+4. **test_update_todo**
+Description: This test checks the update_todo method. It adds a new todo item, then updates it with new values for the task description and completion status. After the update, it verifies that the changes were applied correctly.
+
+5. **test_delete_todo**
+Description: This test verifies the delete_todo method. After adding a new todo item, it deletes the item and checks if it was successfully removed from the storage.
+
+6. **test_delete_todo_not_found**
+Description: This test checks the scenario where an attempt is made to delete a non-existing todo item or an item belonging to a different user. It expects the method to return a NotFound error.
+
+7. **test_update_todo_unauthorized**
+Description: This test checks the unauthorized access scenario in the update_todo method. It attempts to update a todo item with a user context that does not match the user ID of the todo item, expecting an Unauthorized error as the result.
+
+8. **test_get_todo_not_found**
+Description: This test examines the get_todo method's behavior when attempting to retrieve a non-existing todo item or an item belonging to a different user, expecting a NotFound error as the result.
+
+9. **test_get_todos_not_found**
+Description: This test checks the get_todos method when there are no todo items available for the user, expecting an empty list as the result.
+
+Now let's run the tests again:
+
+```bash
+$ cargo test
+```
+
+```bash
+running 17 tests
+test routes::router::tests::test_get_todo_not_found ... ok
+test routes::router::tests::test_delete_todo_not_found ... ok
+test routes::router::tests::test_add_todo ... ok
+test routes::router::tests::test_update_todo_not_found ... ok
+test routes::router::tests::test_get_todos ... ok
+test routes::router::tests::test_delete_todo ... ok
+test routes::router::tests::test_get_todo ... ok
+test storage::memstore::tests::test_add_todo ... ok
+test routes::router::tests::test_update_todo ... ok
+test storage::memstore::tests::test_delete_todo ... ok
+test storage::memstore::tests::test_get_todo_not_found ... ok
+test storage::memstore::tests::test_delete_todo_not_found ... ok
+test storage::memstore::tests::test_get_todos ... ok
+test storage::memstore::tests::test_get_todos_not_found ... ok
+test storage::memstore::tests::test_get_todo ... ok
+test storage::memstore::tests::test_update_todo ... ok
+test storage::memstore::tests::test_update_todo_unauthorized ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+# Conclusion
+
+In this tutorial, we have built a simple REST API for managing todo items. We have used Rust, Warp, and JWT to implement the API and tested it using the Warp test framework. We have also used the Rust async/await syntax to make the API asynchronous and added a simple in-memory storage for storing todo items.  In the next part we will finally start using the database.
