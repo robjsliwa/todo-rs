@@ -9,6 +9,7 @@ In Part 1 of this series, we began our journey into building a multi-tenant Todo
 - Implementing RESTful APIs for our Todo server
 - Protecting access to our APIs with authentication
 - Introducing a hexagonal architecture for our storage layer
+- Unit tests for our APIs and storage layer
 
 So, let's get started!
 
@@ -16,7 +17,7 @@ So, let's get started!
 
 Before we begin, let's take a moment to discuss multi-tenancy. Multi-tenancy is a software architecture pattern where a single instance of software serves multiple tenants. A tenant is a group of users who share a common access with specific privileges to the resources. With multi-tenancy, a software instance is shared by multiple tenants, but each tenant's data is isolated and remains invisible to other tenants. Multi-tenancy is a popular choice for SaaS applications because it allows for a single instance of the software to be shared by multiple customers, reducing operational costs.
 
-We will need to consider multi-tenancy at two levels. One at the API server level and the second one at the database level. There are couple archtictural patterns that we can use to achieve multi-tenancy.
+We will need to consider multi-tenancy at two levels. One at the API server level and the second one at the database level. There are couple architectural patterns that we can use to achieve multi-tenancy.
 
 ### Shared Database, Shared Schema
 
@@ -60,17 +61,19 @@ At the API server level, we will ensure that each user accesses resources that b
 
 At the database level we will use single database, single schema approach. What that means from perspective of schema design is that we will have to add tenant id and user id to each table. This will allow us to ensure that each user can only access resources that belong to them.
 
+At this point it may seem that we really don't get any benefit from `tenant_id` as all access could be controlled with just `user_id`.  This is true for now but we are setting ourselves up for exploring more complex scenarios in future articles which include Role Based Access Control (RBAC) and sharing resources between users.
+
 ## Authentication
 
 Let's begin by adding authentication to our Todo server. We'll be using [JSON Web Tokens](https://jwt.io/) (JWT) to authenticate users. JWTs are a popular choice for authentication because they are stateless, meaning that the server doesn't need to store any session information. This makes JWTs a great choice for our multi-tenant Todo server because we don't need to worry about storing session information for each tenant.
 
-To keep simple for now we will create JWT tokens ourselves for now. In future articles we will extend the project to use a third party authentication provider like Auth0.
+For now, to keep things simple we will create JWT tokens ourselves. In future articles we will extend the project to use a third party authentication provider like Auth0.
 
 ### Creating JWT Tokens
 
 This is an opportunity to create simple command line tool that will accept user id and tenant id and generate JWT token for us. We will use [jsonwebtoken](https://crates.io/crates/jsonwebtoken) crate to generate JWT tokens.
 
-In addition, to the above parameters we need to provide token duration. Duration will be in seconds. We will use 1 hour as defualt duration.
+In addition, to the above parameters we need to provide token duration. Duration will be in seconds. We will use 1 hour as default duration.
 
 Final parameter is the secret that will be used to sign the token. When the server receives the token it will use the same secret to verify the token.
 
@@ -92,6 +95,8 @@ clap = { version = "4.4.2", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 ```
+
+and main.rs:
 
 ```rust
 use chrono::prelude::*;
@@ -150,6 +155,8 @@ Let's build the project and test it out:
 cargo build
 ```
 
+and run it:
+
 ```bash
 cargo run -- --secret secret --tenant-id 1 --user-id 1
 ```
@@ -193,7 +200,7 @@ src/
 
 ## Creating the Todo Model
 
-To make our application multi-tenant, we'll need to update our `Object` struct to a more meaningful `Todo` struct. The `Todo` struct will have the following fields:
+To make our application multi-tenant, we'll need to update our `Object` struct to a more meaningful `Todo` struct and tenant related fields. The `Todo` struct will have the following fields:
 
 - id: A unique identifier for each todo item
 - tenant_id: Identifies the tenant to which this todo item belongs
@@ -1646,31 +1653,31 @@ mod tests {
 Here we use `tokio` and Warp test framework for testing.
 
 1. **test_add_todo**
-Description: This test is checking the functionality of the add_todo method. It creates a new todo item and adds it to the memory store. Then, it retrieves the list of todo items for the user and verifies that the added item is present and has the correct properties.
+This test is checking the functionality of the add_todo method. It creates a new todo item and adds it to the memory store. Then, it retrieves the list of todo items for the user and verifies that the added item is present and has the correct properties.
 
 2. **test_get_todo**
-Description: This test verifies the functionality of the get_todo method. After adding a new todo item, it retrieves the same item using its ID and validates that the retrieved item has the correct properties.
+This test verifies the functionality of the get_todo method. After adding a new todo item, it retrieves the same item using its ID and validates that the retrieved item has the correct properties.
 
-3. **test_get_todos**
-Description: This test is designed to check the get_todos method, which should return all todo items for a specific user. It adds two todo items with different user IDs and checks if the get_todos method is filtering todos based on the user ID correctly.
+1. **test_get_todos**
+This test is designed to check the get_todos method, which should return all todo items for a specific user. It adds two todo items with different user IDs and checks if the get_todos method is filtering todos based on the user ID correctly.
 
-4. **test_update_todo**
-Description: This test checks the update_todo method. It adds a new todo item, then updates it with new values for the task description and completion status. After the update, it verifies that the changes were applied correctly.
+1. **test_update_todo**
+This test checks the update_todo method. It adds a new todo item, then updates it with new values for the task description and completion status. After the update, it verifies that the changes were applied correctly.
 
-5. **test_delete_todo**
-Description: This test verifies the delete_todo method. After adding a new todo item, it deletes the item and checks if it was successfully removed from the storage.
+1. **test_delete_todo**
+This test verifies the delete_todo method. After adding a new todo item, it deletes the item and checks if it was successfully removed from the storage.
 
-6. **test_delete_todo_not_found**
-Description: This test checks the scenario where an attempt is made to delete a non-existing todo item or an item belonging to a different user. It expects the method to return a NotFound error.
+1. **test_delete_todo_not_found**
+This test checks the scenario where an attempt is made to delete a non-existing todo item or an item belonging to a different user. It expects the method to return a NotFound error.
 
-7. **test_update_todo_unauthorized**
-Description: This test checks the unauthorized access scenario in the update_todo method. It attempts to update a todo item with a user context that does not match the user ID of the todo item, expecting an Unauthorized error as the result.
+1. **test_update_todo_unauthorized**
+This test checks the unauthorized access scenario in the update_todo method. It attempts to update a todo item with a user context that does not match the user ID of the todo item, expecting an Unauthorized error as the result.
 
-8. **test_get_todo_not_found**
-Description: This test examines the get_todo method's behavior when attempting to retrieve a non-existing todo item or an item belonging to a different user, expecting a NotFound error as the result.
+1. **test_get_todo_not_found**
+This test examines the get_todo method's behavior when attempting to retrieve a non-existing todo item or an item belonging to a different user, expecting a NotFound error as the result.
 
-9. **test_get_todos_not_found**
-Description: This test checks the get_todos method when there are no todo items available for the user, expecting an empty list as the result.
+1. **test_get_todos_not_found**
+This test checks the get_todos method when there are no todo items available for the user, expecting an empty list as the result.
 
 Now let's run the tests again:
 
