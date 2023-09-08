@@ -843,3 +843,145 @@ We are now ready to define the routes for these handlers in `main.rs`:
         .with(cors)
         .recover(return_error);
 ```
+
+## Running Todo Service
+
+We are now ready to run our Todo service. Remember we need to pass in two environment variables:
+
+- `JWT_SECRET`: Secret use to sign JWT tokens
+- `MEMSTORE_PATH`: File use to persist data
+
+```bash
+JWT_SECRET=secret MEMSTORE_PATH=./data.json cargo run
+```
+
+Let's test it out using curl. First we need to get JWT token:
+
+```bash
+cargo run -- --secret secret --tenant-id 1 --user-id 1
+
+    Finished dev [unoptimized + debuginfo] target(s) in 0.09s
+     Running `target/debug/genjwt --secret secret --tenant-id 1 --user-id 1`
+Generated JWT: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIxIiwidXNlcl9pZCI6IjEiLCJleHAiOjE2OTQwMDg4MjB9.-hW42z2X6d-cgqV7wm-HAPN6RDJCQUazrv55Ks_4tm0
+```
+
+Let's create some todo items:
+
+```bash
+curl -v -X POST http://localhost:3030/todos -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIxIiwidXNlcl9pZCI6IjEiLCJleHAiOjE2OTQwMDg4MjB9.-hW42z2X6d-cgqV7wm-HAPN6RDJCQUazrv55Ks_4tm0" -H "Content-Type: application/json" -d '{"task": "task 1", "completed": false}'
+Note: Unnecessary use of -X or --request, POST is already inferred.
+*   Trying 127.0.0.1:3030...
+* Connected to localhost (127.0.0.1) port 3030 (#0)
+> POST /todos HTTP/1.1
+> Host: localhost:3030
+> User-Agent: curl/7.86.0
+> Accept: */*
+> Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIxIiwidXNlcl9pZCI6IjEiLCJleHAiOjE2OTQwMDg4MjB9.-hW42z2X6d-cgqV7wm-HAPN6RDJCQUazrv55Ks_4tm0
+> Content-Type: application/json
+> Content-Length: 38
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 201 Created
+< content-length: 0
+< date: Wed, 06 Sep 2023 13:03:09 GMT
+<
+* Connection #0 to host localhost left intact
+```
+
+You should get 201 response. Let's make one more task:
+
+```bash
+curl -v -X POST http://localhost:3030/todos -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIxIiwidXNlcl9pZCI6IjEiLCJleHAiOjE2OTQwMDg4MjB9.-hW42z2X6d-cgqV7wm-HAPN6RDJCQUazrv55Ks_4tm0" -H "Content-Type: application/json" -d '{"task": "task 2", "completed": false}'
+```
+
+Now let's get all tasks:
+
+```bash
+curl -v -X GET http://localhost:3030/todos -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIxIiwidXNlcl9pZCI6IjEiLCJleHAiOjE2OTQwMDg4MjB9.-hW42z2X6d-cgqV7wm-HAPN6RDJCQUazrv55Ks_4tm0" -H "Content-Type: application/json"
+Note: Unnecessary use of -X or --request, GET is already inferred.
+*   Trying 127.0.0.1:3030...
+* Connected to localhost (127.0.0.1) port 3030 (#0)
+> GET /todos HTTP/1.1
+> Host: localhost:3030
+> User-Agent: curl/7.86.0
+> Accept: */*
+> Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIxIiwidXNlcl9pZCI6IjEiLCJleHAiOjE2OTQwMDg4MjB9.-hW42z2X6d-cgqV7wm-HAPN6RDJCQUazrv55Ks_4tm0
+> Content-Type: application/json
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 200 OK
+< content-type: application/json
+< content-length: 221
+< date: Wed, 06 Sep 2023 13:04:56 GMT
+<
+* Connection #0 to host localhost left intact
+[{"id":"bd516b06-32f1-4714-b89f-2875d9a503a4","tenant_id":"1","user_id":"1","task":"task 1","completed":false},{"id":"96f3d6ef-65c2-4f2a-9aec-c10dc9a03a78","tenant_id":"1","user_id":"1","task":"task 2","completed":false}]
+```
+
+Let's mark task 2 as completed:
+
+```bash
+curl -v -X PATCH http://localhost:3030/todos/96f3d6ef-65c2-4f2a-9aec-c10dc9a03a78 -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIxIiwidXNlcl9pZCI6IjEiLCJleHAiOjE2OTQwMDg4MjB9.-hW42z2X6d-cgqV7wm-HAPN6RDJCQUazrv55Ks_4tm0" -H "Content-Type: application/json" -d '{"completed": true}'
+*   Trying 127.0.0.1:3030...
+* Connected to localhost (127.0.0.1) port 3030 (#0)
+> PATCH /todos/96f3d6ef-65c2-4f2a-9aec-c10dc9a03a78 HTTP/1.1
+> Host: localhost:3030
+> User-Agent: curl/7.86.0
+> Accept: */*
+> Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIxIiwidXNlcl9pZCI6IjEiLCJleHAiOjE2OTQwMDg4MjB9.-hW42z2X6d-cgqV7wm-HAPN6RDJCQUazrv55Ks_4tm0
+> Content-Type: application/json
+> Content-Length: 19
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 200 OK
+< content-type: application/json
+< content-length: 108
+< date: Wed, 06 Sep 2023 13:06:35 GMT
+<
+* Connection #0 to host localhost left intact
+{"id":"96f3d6ef-65c2-4f2a-9aec-c10dc9a03a78","tenant_id":"1","user_id":"1","task":"task 2","completed":true}
+```
+
+Let's delete task 1:
+
+```bash
+curl -v -X DELETE http://localhost:3030/todos/bd516b06-32f1-4714-b89f-2875d9a503a4 -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIxIiwidXNlcl9pZCI6IjEiLCJleHAiOjE2OTQwMDg4MjB9.-hW42z2X6d-cgqV7wm-HAPN6RDJCQUazrv55Ks_4tm0" -H "Content-Type: application/json"
+*   Trying 127.0.0.1:3030...
+* Connected to localhost (127.0.0.1) port 3030 (#0)
+> DELETE /todos/bd516b06-32f1-4714-b89f-2875d9a503a4 HTTP/1.1
+> Host: localhost:3030
+> User-Agent: curl/7.86.0
+> Accept: */*
+> Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIxIiwidXNlcl9pZCI6IjEiLCJleHAiOjE2OTQwMDg4MjB9.-hW42z2X6d-cgqV7wm-HAPN6RDJCQUazrv55Ks_4tm0
+> Content-Type: application/json
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 204 No Content
+< date: Wed, 06 Sep 2023 13:08:02 GMT
+<
+* Connection #0 to host localhost left intact
+```
+
+Now if we try to get this task we should get 404 Not Found. Let's check if this works:
+
+```bash
+curl -v -X GET http://localhost:3030/todos/bd516b06-32f1-4714-b89f-2875d9a503a4 -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIxIiwidXNlcl9pZCI6IjEiLCJleHAiOjE2OTQwMDg4MjB9.-hW42z2X6d-cgqV7wm-HAPN6RDJCQUazrv55Ks_4tm0" -H "Content-Type: application/json"
+Note: Unnecessary use of -X or --request, GET is already inferred.
+*   Trying 127.0.0.1:3030...
+* Connected to localhost (127.0.0.1) port 3030 (#0)
+> GET /todos/bd516b06-32f1-4714-b89f-2875d9a503a4 HTTP/1.1
+> Host: localhost:3030
+> User-Agent: curl/7.86.0
+> Accept: */*
+> Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIxIiwidXNlcl9pZCI6IjEiLCJleHAiOjE2OTQwMDg4MjB9.-hW42z2X6d-cgqV7wm-HAPN6RDJCQUazrv55Ks_4tm0
+> Content-Type: application/json
+>
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 404 Not Found
+< content-type: text/plain; charset=utf-8
+< content-length: 9
+< date: Wed, 06 Sep 2023 13:09:03 GMT
+<
+* Connection #0 to host localhost left intact
+Not found
+```

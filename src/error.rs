@@ -1,6 +1,6 @@
 use warp::{body::BodyDeserializeError, hyper::StatusCode, reject::Reject, Rejection, Reply};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Error {
     NotFound,
     Unauthorized,

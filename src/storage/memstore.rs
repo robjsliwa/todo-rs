@@ -110,3 +110,236 @@ impl TodoStore for MemStore {
         Err(Error::NotFound)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn test_add_todo() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        assert_eq!(todos[0].task, "test");
+        assert_eq!(todos[0].completed, false);
+        assert_eq!(todos[0].user_id, "user");
+        assert_eq!(todos[0].tenant_id, "tenant");
+        // store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_get_todo() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        let todo = store.get_todo(&ctx, todos[0].id.clone()).await.unwrap();
+        assert_eq!(todo.as_ref().unwrap().task, "test");
+        assert_eq!(todo.as_ref().unwrap().completed, false);
+        assert_eq!(todo.as_ref().unwrap().user_id, "user");
+        assert_eq!(todo.as_ref().unwrap().tenant_id, "tenant");
+        // store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_get_todos() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let ctx2 = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user2".to_string(),
+        };
+        let new_todo2 = NewTodo {
+            task: "test2".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx2, new_todo2).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        assert_eq!(todos[0].task, "test");
+        assert_eq!(todos[0].completed, false);
+        assert_eq!(todos[0].user_id, "user");
+        assert_eq!(todos[0].tenant_id, "tenant");
+        let todos2 = store.get_todos(&ctx2).await.unwrap();
+        assert_eq!(todos2.len(), 1);
+        assert_eq!(todos2[0].task, "test2");
+        assert_eq!(todos2[0].completed, false);
+        assert_eq!(todos2[0].user_id, "user2");
+        assert_eq!(todos2[0].tenant_id, "tenant");
+        // store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_update_todo() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        let update_todo = UpdateTodo {
+            task: Some("test2".to_string()),
+            completed: Some(true),
+        };
+        let todo = store
+            .update_todo(&ctx, todos[0].id.clone(), update_todo)
+            .await
+            .unwrap();
+        assert_eq!(todo.as_ref().unwrap().task, "test2");
+        assert_eq!(todo.as_ref().unwrap().completed, true);
+        assert_eq!(todo.as_ref().unwrap().user_id, "user");
+        assert_eq!(todo.as_ref().unwrap().tenant_id, "tenant");
+        // store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_delete_todo() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        let todo = store
+            .delete_todo(&ctx, todos[0].id.clone())
+            .await
+            .unwrap();
+        assert_eq!(todo.as_ref().unwrap().task, "test");
+        assert_eq!(todo.as_ref().unwrap().completed, false);
+        assert_eq!(todo.as_ref().unwrap().user_id, "user");
+        assert_eq!(todo.as_ref().unwrap().tenant_id, "tenant");
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_delete_todo_not_found() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        let ctx2 = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user2".to_string(),
+        };
+        let expected_result = store
+            .delete_todo(&ctx2, todos[0].id.clone())
+            .await;
+        assert_eq!(expected_result, Err(Error::NotFound));
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_update_todo_unauthorized() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+        let ctx2 = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user2".to_string(),
+        };
+        let update_todo = UpdateTodo {
+            task: Some("test2".to_string()),
+            completed: Some(true),
+        };
+        let expected_result = store
+            .update_todo(&ctx2, todos[0].id.clone(), update_todo)
+            .await;
+        assert_eq!(expected_result, Err(Error::Unauthorized));
+        let todos = store.get_todos(&ctx).await.unwrap();
+        assert_eq!(todos.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_todo_not_found() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user".to_string(),
+        };
+        let new_todo = NewTodo {
+            task: "test".to_string(),
+            completed: false,
+        };
+        store.add_todo(&ctx, new_todo).await.unwrap();
+        let ctx2 = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user2".to_string(),
+        };
+        let expected_result = store.get_todo(&ctx2, "test".to_string()).await;
+        assert_eq!(expected_result, Err(Error::NotFound));
+    }
+
+    #[tokio::test]
+    async fn test_get_todos_not_found() {
+        use super::*;
+        let store = MemStore::new("test.json".to_string());
+        let ctx2 = UserContext {
+            tenant_id: "tenant".to_string(),
+            user_id: "user2".to_string(),
+        };
+        let todos = store.get_todos(&ctx2).await.unwrap();
+        assert_eq!(todos.len(), 0);
+    }
+}
