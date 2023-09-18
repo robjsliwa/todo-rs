@@ -21,10 +21,28 @@ struct Config {
 
 impl Config {
     fn from_env() -> Result<Self, env::VarError> {
+        const DEFAULT_ADDR: &str = "0.0.0.0";
+        const DEFAULT_PORT: &str = "3030";
         let memstore_path = env::var("MEMSTORE_PATH")?;
         let jwt_secret = env::var("JWT_SECRET")?;
-        let ip_address = env::var("TODO_ADDR").unwrap_or("0.0.0.0".to_string());
-        let port = env::var("TODO_PORT").unwrap_or("3030".to_string());
+        let ip_address = env::var("TODO_ADDR")
+            .map(|s| {
+                if s.is_empty() {
+                    DEFAULT_ADDR.to_string()
+                } else {
+                    s
+                }
+            })
+            .unwrap_or(DEFAULT_ADDR.to_string());
+        let port = env::var("TODO_PORT")
+            .map(|s| {
+                if s.is_empty() {
+                    DEFAULT_PORT.to_string()
+                } else {
+                    s
+                }
+            })
+            .unwrap_or(DEFAULT_PORT.to_string());
         let full_addr = format!("{}:{}", ip_address, port);
         let server_addr = full_addr.parse().map_err(|_| env::VarError::NotPresent)?;
 
@@ -45,13 +63,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mem_store = MemStore::new(config.memstore_path);
     let store: Arc<dyn TodoStore> = Arc::new(mem_store.clone());
     let store_for_routes = store.clone();
+    info!("Server started at {}", config.server_addr);
 
     tokio::select! {
         _ = warp::serve(router(store_for_routes, with_jwt(config.jwt_secret))).run(config.server_addr) => {
-            info!("Server started at {}", config.server_addr);
+            info!("Server shutting down...");
         }
         _ = tokio::signal::ctrl_c() => {
             info!("Ctrl-C received, shutting down...");
+            println!("Ctrl-C received, shutting down...");
             mem_store.shutdown().await?;
         }
     }

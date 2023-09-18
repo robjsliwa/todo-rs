@@ -10,8 +10,12 @@ services:
     working_dir: /usr/src/todo
     environment:
       - USER=$USER
+      - MEMSTORE_PATH=$MEMSTORE_PATH
+      - JWT_SECRET=$JWT_SECRET
+      - TODO_ADDR=$TODO_ADDR
+      - TODO_PORT=$TODO_PORT
     ports:
-      - 3030:3030
+      - 3030:3030 
     depends_on:
       - mongodb
   
