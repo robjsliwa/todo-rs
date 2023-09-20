@@ -5,6 +5,7 @@ pub enum Error {
     NotFound,
     Unauthorized,
     InvalidToken,
+    DatabaseOperationFailed(String),
 }
 
 impl std::fmt::Display for Error {
@@ -13,6 +14,7 @@ impl std::fmt::Display for Error {
             Error::NotFound => write!(f, "Not found"),
             Error::Unauthorized => write!(f, "Unauthorized"),
             Error::InvalidToken => write!(f, "Invalid token"),
+            Error::DatabaseOperationFailed(msg) => write!(f, "Database: {}", msg),
         }
     }
 }
@@ -25,6 +27,9 @@ pub async fn return_error(err: Rejection) -> Result<impl Reply, Rejection> {
             Error::NotFound => (StatusCode::NOT_FOUND, error.to_string()),
             Error::Unauthorized => (StatusCode::UNAUTHORIZED, error.to_string()),
             Error::InvalidToken => (StatusCode::UNAUTHORIZED, error.to_string()),
+            Error::DatabaseOperationFailed(msg) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, msg.to_string())
+            }
         }
     } else if let Some(error) = err.find::<BodyDeserializeError>() {
         (StatusCode::UNPROCESSABLE_ENTITY, error.to_string())

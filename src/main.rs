@@ -1,6 +1,6 @@
 use crate::auth::with_jwt;
 use crate::routes::router;
-use crate::storage::{memstore::MemStore, store::TodoStore};
+use crate::storage::{store::TodoStore, MongoStore};
 use log::info;
 use std::env;
 use std::net::SocketAddr;
@@ -60,8 +60,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Config::from_env().expect("Failed to load configuration");
 
-    let mem_store = MemStore::new(config.memstore_path);
-    let store: Arc<dyn TodoStore> = Arc::new(mem_store.clone());
+    let mongo_store = MongoStore::init(config.memstore_path)
+        .await
+        .unwrap_or_else(|e| panic!("Failed to connect to MongoDB: {:?}", e));
+    let store: Arc<dyn TodoStore> = Arc::new(mongo_store.clone());
     let store_for_routes = store.clone();
     info!("Server started at {}", config.server_addr);
 
@@ -71,8 +73,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         _ = tokio::signal::ctrl_c() => {
             info!("Ctrl-C received, shutting down...");
-            println!("Ctrl-C received, shutting down...");
-            mem_store.shutdown().await?;
         }
     }
 
