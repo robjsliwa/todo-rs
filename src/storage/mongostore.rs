@@ -25,6 +25,23 @@ macro_rules! update_todo {
     }};
 }
 
+async fn mongo_result<T>(
+    result: Result<Option<T>, mongodb::error::Error>,
+    operation: &str,
+) -> Result<Option<T>, Error> {
+    match result {
+        Ok(None) => Err(Error::NotFound),
+        Ok(Some(item)) => Ok(Some(item)),
+        Err(e) => {
+            error!("Failed to {}: {:?}", operation, e);
+            Err(Error::DatabaseOperationFailed(format!(
+                "Failed to {}: {:?}",
+                operation, e
+            )))
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct MongoStore {
     todo_col: Collection<Todo>,
@@ -36,9 +53,7 @@ impl MongoStore {
         Ok(Self { todo_col })
     }
 
-    pub async fn connect(
-        mongo_uri: String,
-    ) -> Result<Collection<Todo>, Box<dyn std::error::Error>> {
+    async fn connect(mongo_uri: String) -> Result<Collection<Todo>, Box<dyn std::error::Error>> {
         let client = Client::with_uri_str(mongo_uri).await?;
         let db = client.database(DB_NAME);
         let col: Collection<Todo> = db.collection("Todos");
@@ -67,10 +82,8 @@ impl TodoStore for MongoStore {
             "tenant_id": ctx.tenant_id.clone(),
             "user_id": ctx.user_id.clone(),
         };
-        self.todo_col.find_one(filter, None).await.map_err(|e| {
-            error!("Failed to get todo: {:?}", e);
-            Error::DatabaseOperationFailed(format!("Failed to get todo: {:?}", e))
-        })
+        let result = self.todo_col.find_one(filter, None).await;
+        mongo_result(result, "get todo").await
     }
 
     async fn get_todos(&self, ctx: &UserContext) -> Result<Vec<Todo>, Error> {
@@ -103,13 +116,11 @@ impl TodoStore for MongoStore {
         let update = doc! {
             "$set": update_todo!(update_todo),
         };
-        self.todo_col
+        let result = self
+            .todo_col
             .find_one_and_update(filter, update, None)
-            .await
-            .map_err(|e| {
-                error!("Failed to update todo: {:?}", e);
-                Error::DatabaseOperationFailed(format!("Failed to update todo: {:?}", e))
-            })
+            .await;
+        mongo_result(result, "update todo").await
     }
 
     async fn delete_todo(&self, ctx: &UserContext, id: String) -> Result<Option<Todo>, Error> {
@@ -118,12 +129,7 @@ impl TodoStore for MongoStore {
             "tenant_id": ctx.tenant_id.clone(),
             "user_id": ctx.user_id.clone(),
         };
-        self.todo_col
-            .find_one_and_delete(filter, None)
-            .await
-            .map_err(|e| {
-                error!("Failed to delete todo: {:?}", e);
-                Error::DatabaseOperationFailed(format!("Failed to delete todo: {:?}", e))
-            })
+        let result = self.todo_col.find_one_and_delete(filter, None).await;
+        mongo_result(result, "delete todo").await
     }
 }
