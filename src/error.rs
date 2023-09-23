@@ -22,7 +22,6 @@ impl std::fmt::Display for Error {
 impl Reject for Error {}
 
 pub async fn return_error(err: Rejection) -> Result<impl Reply, Rejection> {
-    println!("err: {:?}", err);
     let (code, message) = if let Some(error) = err.find::<Error>() {
         match error {
             Error::NotFound => (StatusCode::NOT_FOUND, error.to_string()),
