@@ -10,6 +10,7 @@ use tokio::sync::RwLock;
 #[derive(Clone)]
 pub struct MemStore {
     pub objects: Arc<RwLock<HashMap<String, Todo>>>,
+    #[allow(dead_code)]
     file_path: String,
 }
 
@@ -38,6 +39,7 @@ impl MemStore {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn shutdown(&self) -> std::io::Result<()> {
         let data = self.objects.read().await;
         let json = serde_json::to_string(&*data).expect("Failed to save data!");

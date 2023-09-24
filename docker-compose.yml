@@ -1,0 +1,30 @@
+version: "3"
+services:
+  todo:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: todo
+    volumes:
+      - .:/usr/src/todo
+    working_dir: /usr/src/todo
+    environment:
+      - USER=$USER
+      - JWT_SECRET=$JWT_SECRET
+      - TODO_ADDR=$TODO_ADDR
+      - TODO_PORT=$TODO_PORT
+      - MONGO_URI=$MONGO_URI
+    ports:
+      - 3030:3030 
+    depends_on:
+      - mongodb
+  
+  mongodb:
+    image: "mongodb/mongodb-community-server:6.0-ubi8"
+    ports:
+      - 27017:27017
+    volumes:
+      - data:/data/db
+
+volumes:
+  data:
