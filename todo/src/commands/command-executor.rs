@@ -1,3 +1,5 @@
+use crate::config::Config;
+
 pub trait CommandExecutor {
-    fn execute(&self);
+    fn execute(&self, config: &Config);
 }
