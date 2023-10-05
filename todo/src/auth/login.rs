@@ -35,14 +35,27 @@ pub fn login(config: &Config) {
 
     println!("{:#?}", resp);
 
-    let device_auth_response: DeviceAuthResponse = resp?.json::<DeviceAuthResponse>()?;
+    let response = match resp {
+        Ok(resp) => resp,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        }
+    };
+    let device_auth_response: DeviceAuthResponse = match response.json::<DeviceAuthResponse>() {
+        Ok(resp) => resp,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     println!(
         "Go to {} and enter the code: {}",
         device_auth_response.verification_uri, device_auth_response.user_code
     );
 
-    open::that(device_auth_response.verification_uri_complete)?;
+    open::that(device_auth_response.verification_uri_complete).unwrap();
 
     let token_endpoint = format!("https://{}/oauth/token", config.domain);
 
@@ -56,8 +69,16 @@ pub fn login(config: &Config) {
                 ("device_code", &device_auth_response.device_code),
                 ("client_id", config.client_id.as_str()),
             ])
-            .send()?
-            .json::<TokenResponse>()?;
+            .send()
+            .unwrap_or_else(|e| {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            })
+            .json::<TokenResponse>()
+            .unwrap_or_else(|e| {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            });
 
         println!("poll resp {:?}", resp);
         if let Some(access_token) = resp.access_token {
