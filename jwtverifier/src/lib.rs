@@ -132,7 +132,8 @@ mod tests {
         let aud = "https://todos.example.com/";
         let resp = verify_jwt::<Claims>(jwt, &jwks, aud).await;
         println!("{:#?}", resp);
-        assert!(resp.is_ok());
+        assert!(resp.is_err());
+        assert_eq!(resp.unwrap_err().to_string(), "ExpiredSignature");
     }
 
     #[tokio::test]
@@ -149,7 +150,8 @@ mod tests {
         let verifier = JwtVerifier::new("http://localhost:1234");
         let resp = verifier.verify::<Claims>(jwt, aud).await;
         println!("{:#?}", resp);
-        assert!(resp.is_ok());
+        assert!(resp.is_err());
+        assert_eq!(resp.unwrap_err().to_string(), "ExpiredSignature");
     }
 
     #[tokio::test]
@@ -168,6 +170,7 @@ mod tests {
             .build();
         let resp = verifier.verify::<Claims>(jwt, aud).await;
         println!("{:#?}", resp);
-        assert!(resp.is_ok());
+        assert!(resp.is_err());
+        assert_eq!(resp.unwrap_err().to_string(), "ExpiredSignature");
     }
 }
