@@ -1,5 +1,6 @@
 #[path = "command-executor.rs"]
 mod command_executor;
+mod context;
 mod login;
 mod logout;
 #[path = "todos-add.rs"]
@@ -17,8 +18,8 @@ mod todos_options;
 #[path = "todos-view.rs"]
 mod todos_view;
 
-use crate::config::Config;
 use command_executor::CommandExecutor;
+pub use context::CommandContext;
 use login::login;
 use logout::logout;
 use todos_add::todos_add;
@@ -47,11 +48,11 @@ enum Command {
 }
 
 impl CommandExecutor for Command {
-    fn execute(&self, config: &Config) {
+    fn execute(&self, context: &mut CommandContext) {
         match self {
-            Command::Login => login(config),
+            Command::Login => login(context),
             Command::Logout => logout(),
-            Command::Todos(todos_command) => todos_command.execute(config),
+            Command::Todos(todos_command) => todos_command.execute(context),
         }
     }
 }
@@ -66,7 +67,7 @@ enum TodosCommand {
 }
 
 impl CommandExecutor for TodosCommand {
-    fn execute(&self, _: &Config) {
+    fn execute(&self, _: &mut CommandContext) {
         match self {
             TodosCommand::View(todos_options) => todos_view(todos_options),
             TodosCommand::List => todos_list(),
@@ -77,7 +78,7 @@ impl CommandExecutor for TodosCommand {
     }
 }
 
-pub fn invoke_command(config: &Config) {
+pub fn invoke_command(context: &mut CommandContext) {
     let cli = Cli::parse();
-    cli.command.execute(config);
+    cli.command.execute(context);
 }

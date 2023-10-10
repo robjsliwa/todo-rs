@@ -1,6 +1,7 @@
 use crate::config::Config;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
+use spinners::{Spinner, Spinners};
 
 #[derive(Serialize, Deserialize)]
 struct DeviceAuthResponse {
@@ -13,16 +14,15 @@ struct DeviceAuthResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct TokenResponse {
-    access_token: Option<String>,
-    token_type: Option<String>,
-    refresh_token: Option<String>,
-    expires_in: Option<usize>,
-    scope: Option<String>,
+pub struct TokenResponse {
+    pub access_token: Option<String>,
+    pub token_type: Option<String>,
+    pub refresh_token: Option<String>,
+    pub expires_in: Option<usize>,
+    pub scope: Option<String>,
 }
 
-pub fn login(config: &Config) {
-    // Get Device Code
+pub fn login(config: &Config) -> Result<TokenResponse, Box<dyn std::error::Error>> {
     let client = Client::new();
     let resp = client
         .post(&format!("https://{}/oauth/device/code", config.domain))
@@ -33,21 +33,13 @@ pub fn login(config: &Config) {
         ])
         .send();
 
-    println!("{:#?}", resp);
-
     let response = match resp {
         Ok(resp) => resp,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            std::process::exit(1);
-        }
+        Err(e) => return Err(e.into()),
     };
     let device_auth_response: DeviceAuthResponse = match response.json::<DeviceAuthResponse>() {
         Ok(resp) => resp,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            std::process::exit(1);
-        }
+        Err(e) => return Err(e.into()),
     };
 
     println!(
@@ -55,14 +47,13 @@ pub fn login(config: &Config) {
         device_auth_response.verification_uri, device_auth_response.user_code
     );
 
-    open::that(device_auth_response.verification_uri_complete).unwrap();
+    _ = open::that(device_auth_response.verification_uri_complete);
 
     let token_endpoint = format!("https://{}/oauth/token", config.domain);
 
-    // Polling for token.
+    let mut sp = Spinner::new(Spinners::Dots9, "Polling for token".into());
     loop {
-        println!("Polling for token...");
-        let resp: TokenResponse = client
+        let resp_result = client
             .post(&token_endpoint)
             .form(&[
                 ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
@@ -70,20 +61,19 @@ pub fn login(config: &Config) {
                 ("client_id", config.client_id.as_str()),
             ])
             .send()
-            .unwrap_or_else(|e| {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            })
-            .json::<TokenResponse>()
-            .unwrap_or_else(|e| {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            });
+            .and_then(|res| res.json::<TokenResponse>());
 
-        println!("poll resp {:?}", resp);
-        if let Some(access_token) = resp.access_token {
-            println!("Access Token: {}", access_token);
-            break;
+        match resp_result {
+            Ok(resp) => {
+                if resp.access_token.is_some() {
+                    sp.stop();
+                    return Ok(resp);
+                }
+            }
+            Err(e) => {
+                sp.stop();
+                return Err(Box::new(e));
+            }
         }
 
         std::thread::sleep(std::time::Duration::from_secs(

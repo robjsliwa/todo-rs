@@ -29,6 +29,7 @@ impl Credentials {
     }
 
     pub fn build(&self) -> Self {
+        println!("file_name: {}", self.file_name);
         Credentials {
             data: self.data.clone(),
             file_name: self.file_name.clone(),
@@ -37,7 +38,7 @@ impl Credentials {
 
     pub fn load(&self) -> Result<Self, Error> {
         let store_path = match dirs::home_dir() {
-            Some(path) => path.join(CREDENTIALS_FILE),
+            Some(path) => path.join(self.file_name.clone()),
             None => {
                 return Err(Error::new(
                     std::io::ErrorKind::NotFound,
@@ -50,13 +51,16 @@ impl Credentials {
             let credentials: Credentials = serde_json::from_str(&contents)?;
             Ok(credentials)
         } else {
-            Ok(Credentials::new())
+            Ok(Credentials {
+                data: HashMap::new(),
+                file_name: self.file_name.clone(),
+            })
         }
     }
 
     pub fn save(&self) -> Result<(), Error> {
         let store_path = match dirs::home_dir() {
-            Some(path) => path.join(CREDENTIALS_FILE),
+            Some(path) => path.join(self.file_name.clone()),
             None => {
                 return Err(Error::new(
                     std::io::ErrorKind::NotFound,
@@ -71,7 +75,7 @@ impl Credentials {
 
     pub fn delete(&self) -> Result<(), Error> {
         let store_path = match dirs::home_dir() {
-            Some(path) => path.join(CREDENTIALS_FILE),
+            Some(path) => path.join(self.file_name.clone()),
             None => {
                 return Err(Error::new(
                     std::io::ErrorKind::NotFound,
@@ -93,16 +97,18 @@ impl Default for Credentials {
 }
 
 impl CredStore for Credentials {
-    fn add(&mut self, key: String, value: String) {
+    fn add(&mut self, key: String, value: String) -> &mut Self {
         self.data.insert(key, value);
+        self
     }
 
     fn get(&self, key: &str) -> Option<&String> {
         self.data.get(key)
     }
 
-    fn clear(&mut self) {
+    fn clear(&mut self) -> &mut Self {
         self.data.clear();
+        self
     }
 
     fn keys_present(&self, keys: &[String]) -> bool {

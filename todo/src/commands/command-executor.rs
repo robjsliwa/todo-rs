@@ -1,5 +1,5 @@
-use crate::config::Config;
+use super::CommandContext;
 
 pub trait CommandExecutor {
-    fn execute(&self, config: &Config);
+    fn execute(&self, context: &mut CommandContext);
 }

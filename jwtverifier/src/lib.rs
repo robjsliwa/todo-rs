@@ -1,20 +1,24 @@
 use jsonwebtoken::{jwk::JwkSet, DecodingKey, TokenData};
 use serde::de::DeserializeOwned;
+use std::sync::{Arc, RwLock};
 
 const JWKS_URI: &str = ".well-known/jwks.json";
 
+#[derive(Debug, Clone)]
 pub struct JwtVerifier {
     domain: String,
-    jwks_cache: Option<JwkSet>,
+    jwks_cache: Arc<RwLock<Option<JwkSet>>>,
     use_cache: bool,
+    aud: Option<String>,
 }
 
 impl JwtVerifier {
     pub fn new(domain: &str) -> Self {
         Self {
             domain: domain.to_string(),
-            jwks_cache: None,
+            jwks_cache: Arc::new(None.into()),
             use_cache: false,
+            aud: None,
         }
     }
 
@@ -23,31 +27,42 @@ impl JwtVerifier {
         self
     }
 
+    pub fn validate_aud(mut self, value: &str) -> Self {
+        self.aud = Some(value.to_string());
+        self
+    }
+
     pub fn build(self) -> JwtVerifier {
         JwtVerifier {
             domain: self.domain,
             jwks_cache: self.jwks_cache,
             use_cache: self.use_cache,
+            aud: self.aud,
         }
     }
 
-    pub async fn verify<Claims: DeserializeOwned>(
-        mut self,
+    pub async fn verify<Claims: DeserializeOwned + Clone>(
+        self,
         jwt: &str,
-        aud: &str,
     ) -> Result<TokenData<Claims>, Box<dyn std::error::Error>> {
-        let jwks = match self.use_cache {
-            true => match &mut self.jwks_cache {
-                Some(jwks) => jwks.clone(),
-                None => {
-                    let jwks = fetch_jwt(&format!("{}/{}", self.domain, JWKS_URI)).await?;
-                    self.jwks_cache = Some(jwks.clone());
-                    jwks
-                }
-            },
-            false => fetch_jwt(&format!("{}/{}", self.domain, JWKS_URI)).await?,
+        let maybe_jwks = if self.use_cache {
+            self.jwks_cache.read().unwrap().clone()
+        } else {
+            None
         };
-        verify_jwt(jwt, &jwks, aud).await
+
+        let jwks = match maybe_jwks {
+            Some(jwks) => jwks,
+            None => {
+                let fetched_jwks = fetch_jwt(&format!("{}/{}", self.domain, JWKS_URI)).await?;
+                if self.use_cache {
+                    *self.jwks_cache.write().unwrap() = Some(fetched_jwks.clone());
+                }
+                fetched_jwks
+            }
+        };
+
+        verify_jwt(jwt, &jwks, self.aud).await
     }
 }
 
@@ -59,10 +74,12 @@ pub async fn fetch_jwt(url: &str) -> Result<JwkSet, Box<dyn std::error::Error>> 
 pub async fn verify_jwt<Claims: DeserializeOwned>(
     jwt: &str,
     jwks: &JwkSet,
-    aud: &str,
+    aud: Option<String>,
 ) -> Result<TokenData<Claims>, Box<dyn std::error::Error>> {
     let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::RS256);
-    validation.set_audience(&[aud]);
+    if let Some(aud) = aud {
+        validation.set_audience(&[aud]);
+    }
     let header = jsonwebtoken::decode_header(jwt)?;
     let kid = match header.kid {
         Some(kid) => kid,
@@ -87,7 +104,7 @@ mod tests {
     use mockito::mock;
     use serde::Deserialize;
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Deserialize, Clone)]
     pub struct Claims {
         pub iss: String,
         pub sub: String,
@@ -130,7 +147,7 @@ mod tests {
         .await
         .unwrap();
         let aud = "https://todos.example.com/";
-        let resp = verify_jwt::<Claims>(jwt, &jwks, aud).await;
+        let resp = verify_jwt::<Claims>(jwt, &jwks, Some(aud.to_string())).await;
         println!("{:#?}", resp);
         assert!(resp.is_err());
         assert_eq!(resp.unwrap_err().to_string(), "ExpiredSignature");
@@ -146,9 +163,8 @@ mod tests {
             .create();
 
         let jwt = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjF6dTE3U0VDdmhfWmNnNHM5UVBxWCJ9.eyJpc3MiOiJodHRwczovL2Rldi1vZ282YWJtdzV4MGhzdWVyLnVzLmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2NTEyY2U1MzUxODYwNDlmYjJhOTAxODEiLCJhdWQiOlsiaHR0cHM6Ly90b2Rvcy5leGFtcGxlLmNvbS8iLCJodHRwczovL2Rldi1vZ282YWJtdzV4MGhzdWVyLnVzLmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE2OTY2Mzk5MjUsImV4cCI6MTY5NjcyNjMyNSwiYXpwIjoiRlFRTjJRVmRobldQb1M3eFZqOGp2SnZTWU1oSDNYVVQiLCJzY29wZSI6Im9wZW5pZCBwcm9maWxlIGVtYWlsIG9mZmxpbmVfYWNjZXNzIn0.Q65UjlmbHHcDL7WIHTQ30Zy6PFi46bfxaJBu8pxcRtUiQzWugj6kkwt9FsCyStCJhahcWIZDfrtHBaweH3ynkS4n05HXYBtuUAK-hbWgR-NcXY31z9HdiSjY67gpYUoLvbuwytSlmh7rryN80jUR9HpivKtfN9i-6A45gf1R14TzkPKxmvDLRIGHiSnlqM7WFitEUfRCkaRuV4SEVyGRpX4VHwVBq7e5m2SoEPuNOnRenl56VmROcJhXBwNvdBzqrYkWDDx_pvZbY0iPeFiUL3pVzdQh_PCHtWq25nNKGFGm3hxMPloNXkHsqncDgMl2y08fMGf0e07c3ALv-YmVKw";
-        let aud = "https://todos.example.com/";
         let verifier = JwtVerifier::new("http://localhost:1234");
-        let resp = verifier.verify::<Claims>(jwt, aud).await;
+        let resp = verifier.verify::<Claims>(jwt).await;
         println!("{:#?}", resp);
         assert!(resp.is_err());
         assert_eq!(resp.unwrap_err().to_string(), "ExpiredSignature");
@@ -167,8 +183,9 @@ mod tests {
         let aud = "https://todos.example.com/";
         let verifier = JwtVerifier::new("http://localhost:1234")
             .use_cache(true)
+            .validate_aud(aud)
             .build();
-        let resp = verifier.verify::<Claims>(jwt, aud).await;
+        let resp = verifier.verify::<Claims>(jwt).await;
         println!("{:#?}", resp);
         assert!(resp.is_err());
         assert_eq!(resp.unwrap_err().to_string(), "ExpiredSignature");
