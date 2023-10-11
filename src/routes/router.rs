@@ -1,5 +1,5 @@
 use super::*;
-use crate::auth::Claims;
+use crate::auth::UserInfo;
 use crate::error::return_error;
 use crate::storage::{TodoStore, UserContext};
 use std::sync::Arc;
@@ -8,9 +8,8 @@ use warp::{http::Method, Filter, Rejection};
 
 pub fn router(
     store: Arc<dyn TodoStore>,
-    domain: String,
     with_jwt: impl Filter<Extract = (UserContext,), Error = Rejection> + Clone + Send + Sync + 'static,
-    with_decoded: impl Filter<Extract = (Claims,), Error = Rejection> + Clone + Send + Sync + 'static,
+    with_decoded: impl Filter<Extract = (UserInfo,), Error = Rejection> + Clone + Send + Sync + 'static,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let with_store = warp::any().map(move || store.clone());
 
@@ -61,7 +60,6 @@ pub fn router(
         .and(warp::path::end())
         .and(with_decoded)
         .and(with_store)
-        .and(warp::any().map(move || domain.clone()))
         .and_then(user_info);
 
     get_todo_route
@@ -76,7 +74,7 @@ pub fn router(
 
 #[cfg(test)]
 mod tests {
-    use crate::auth::Claims;
+    use crate::auth::UserInfo;
     use crate::error::Error;
     use crate::model::Todo;
     use crate::storage::UserContext;
@@ -100,12 +98,12 @@ mod tests {
     }
 
     fn with_mock_decode(
-        claims: Claims,
-    ) -> impl Filter<Extract = (Claims,), Error = Rejection> + Clone {
+        userinfo: UserInfo,
+    ) -> impl Filter<Extract = (UserInfo,), Error = Rejection> + Clone {
         warp::header::headers_cloned()
-            .map(move |headers: HeaderMap| (headers.clone(), claims.clone()))
-            .and_then(|(_headers, claims): (HeaderMap, Claims)| async move {
-                Ok::<Claims, Rejection>(claims)
+            .map(move |headers: HeaderMap| (headers.clone(), userinfo.clone()))
+            .and_then(|(_headers, claims): (HeaderMap, UserInfo)| async move {
+                Ok::<UserInfo, Rejection>(claims)
             })
     }
 
@@ -118,9 +116,8 @@ mod tests {
         };
         let route = super::router(
             store,
-            "".to_string(),
             with_mock_jwt(user_context, true),
-            with_mock_decode(Claims::default()),
+            with_mock_decode(UserInfo::default()),
         );
         let resp = warp::test::request()
             .method("POST")
@@ -143,9 +140,8 @@ mod tests {
         };
         let route = super::router(
             store,
-            "".to_string(),
             with_mock_jwt(user_context, true),
-            with_mock_decode(Claims::default()),
+            with_mock_decode(UserInfo::default()),
         );
 
         let resp = warp::test::request()
@@ -190,9 +186,8 @@ mod tests {
         };
         let route = super::router(
             store,
-            "".to_string(),
             with_mock_jwt(user_context, true),
-            with_mock_decode(Claims::default()),
+            with_mock_decode(UserInfo::default()),
         );
         let resp = warp::test::request()
             .method("GET")
@@ -211,9 +206,8 @@ mod tests {
         };
         let route = super::router(
             store,
-            "".to_string(),
             with_mock_jwt(user_context, true),
-            with_mock_decode(Claims::default()),
+            with_mock_decode(UserInfo::default()),
         );
 
         let resp = warp::test::request()
@@ -270,9 +264,8 @@ mod tests {
         };
         let route = super::router(
             store,
-            "".to_string(),
             with_mock_jwt(user_context, true),
-            with_mock_decode(Claims::default()),
+            with_mock_decode(UserInfo::default()),
         );
         let resp = warp::test::request()
             .method("PATCH")
@@ -295,9 +288,8 @@ mod tests {
         };
         let route = super::router(
             store,
-            "".to_string(),
             with_mock_jwt(user_context, true),
-            with_mock_decode(Claims::default()),
+            with_mock_decode(UserInfo::default()),
         );
 
         let resp = warp::test::request()
@@ -348,9 +340,8 @@ mod tests {
         };
         let route = super::router(
             store,
-            "".to_string(),
             with_mock_jwt(user_context, true),
-            with_mock_decode(Claims::default()),
+            with_mock_decode(UserInfo::default()),
         );
         let resp = warp::test::request()
             .method("DELETE")
@@ -369,9 +360,8 @@ mod tests {
         };
         let route = super::router(
             store,
-            "".to_string(),
             with_mock_jwt(user_context, true),
-            with_mock_decode(Claims::default()),
+            with_mock_decode(UserInfo::default()),
         );
 
         let resp = warp::test::request()

@@ -80,12 +80,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .validate_aud(&config.audience)
         .build();
     let with_jwt_middleware = with_jwt(jwt_verifier.clone(), store.clone(), cache);
-    let with_decoded_middleware = with_decoded(jwt_verifier);
+    let with_decoded_middleware = with_decoded(jwt_verifier, config.domain.clone());
 
     info!("Server started at {}", config.server_addr);
 
     tokio::select! {
-        _ = warp::serve(router(store_for_routes, config.domain, with_jwt_middleware, with_decoded_middleware)).run(config.server_addr) => {
+        _ = warp::serve(router(store_for_routes, with_jwt_middleware, with_decoded_middleware)).run(config.server_addr) => {
             info!("Server shutting down...");
         }
         _ = tokio::signal::ctrl_c() => {
