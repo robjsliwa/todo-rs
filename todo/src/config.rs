@@ -6,6 +6,7 @@ pub struct Config {
     pub domain: String,
     pub client_id: String,
     pub audience: String,
+    pub todo_url: String,
 }
 
 impl Config {
@@ -14,12 +15,14 @@ impl Config {
         let domain = env::var("DOMAIN")?;
         let client_id = env::var("CLIENT_ID")?;
         let audience = env::var("AUDIENCE")?;
+        let todo_url = env::var("TODO_URL")?;
         println!("domain: {}", domain);
 
         Ok(Self {
             domain,
             client_id,
             audience,
+            todo_url,
         })
     }
 }
