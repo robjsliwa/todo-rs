@@ -48,8 +48,11 @@ impl Credentials {
         };
         if Path::new(&store_path).exists() {
             let contents = fs::read_to_string(&store_path)?;
-            let credentials: Credentials = serde_json::from_str(&contents)?;
-            Ok(credentials)
+            let data: HashMap<String, String> = serde_json::from_str(&contents)?;
+            Ok(Credentials {
+                data,
+                file_name: self.file_name.clone(),
+            })
         } else {
             Ok(Credentials {
                 data: HashMap::new(),
@@ -68,7 +71,7 @@ impl Credentials {
                 ))
             }
         };
-        let contents = serde_json::to_string_pretty(&self)?;
+        let contents = serde_json::to_string_pretty(&self.data)?;
         fs::write(store_path, contents)?;
         Ok(())
     }
