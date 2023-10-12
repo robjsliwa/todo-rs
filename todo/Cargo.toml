@@ -14,3 +14,5 @@ reqwest = { version = "0.11", features = ["blocking", "json"] }
 dotenv = "0.15.0"
 spinners = "4.1.0"
 cred-store = { path = "../cred-store" }
+base64 = "0.21.4"
+chrono = "0.4.31"

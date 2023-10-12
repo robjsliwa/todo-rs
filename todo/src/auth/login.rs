@@ -1,3 +1,4 @@
+use super::token_response::TokenResponse;
 use crate::config::Config;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
@@ -11,15 +12,6 @@ struct DeviceAuthResponse {
     verification_uri_complete: String,
     expires_in: usize,
     interval: usize,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TokenResponse {
-    pub access_token: Option<String>,
-    pub token_type: Option<String>,
-    pub refresh_token: Option<String>,
-    pub expires_in: Option<usize>,
-    pub scope: Option<String>,
 }
 
 pub fn login(config: &Config) -> Result<TokenResponse, Box<dyn std::error::Error>> {

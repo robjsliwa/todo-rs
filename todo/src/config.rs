@@ -16,7 +16,6 @@ impl Config {
         let client_id = env::var("CLIENT_ID")?;
         let audience = env::var("AUDIENCE")?;
         let todo_url = env::var("TODO_URL")?;
-        println!("domain: {}", domain);
 
         Ok(Self {
             domain,

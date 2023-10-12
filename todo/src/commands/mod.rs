@@ -30,6 +30,7 @@ use todos_list::todos_list;
 use todos_options::TodosOptions;
 use todos_view::todos_view;
 
+use crate::auth::get_token;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -67,10 +68,23 @@ enum TodosCommand {
 }
 
 impl CommandExecutor for TodosCommand {
-    fn execute(&self, _: &mut CommandContext) {
+    fn execute(&self, context: &mut CommandContext) {
+        let access_token = match get_token(context) {
+            Ok(token) => match token {
+                Some(token) => token,
+                None => {
+                    eprintln!("You must login first.");
+                    std::process::exit(1);
+                }
+            },
+            Err(e) => {
+                eprintln!("Couldn't get credentials: {}.  Try to login again.", e);
+                std::process::exit(1);
+            }
+        };
         match self {
             TodosCommand::View(todos_options) => todos_view(todos_options),
-            TodosCommand::List => todos_list(),
+            TodosCommand::List => todos_list(&context.config.todo_url, &access_token),
             TodosCommand::Add(todo_add_command) => todos_add(todo_add_command),
             TodosCommand::Complete(todos_options) => todos_complete(todos_options),
             TodosCommand::Delete(todos_options) => todos_delete(todos_options),

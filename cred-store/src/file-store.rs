@@ -29,7 +29,6 @@ impl Credentials {
     }
 
     pub fn build(&self) -> Self {
-        println!("file_name: {}", self.file_name);
         Credentials {
             data: self.data.clone(),
             file_name: self.file_name.clone(),
