@@ -3,6 +3,7 @@ mod command_executor;
 mod context;
 mod login;
 mod logout;
+mod todo;
 #[path = "todos-add.rs"]
 mod todos_add;
 #[path = "todos-add-options.rs"]
@@ -22,12 +23,13 @@ use command_executor::CommandExecutor;
 pub use context::CommandContext;
 use login::login;
 use logout::logout;
+use todo::*;
 use todos_add::todos_add;
 use todos_add_options::TodoAddCommand;
 use todos_complete::todos_complete;
 use todos_delete::todos_delete;
 use todos_list::todos_list;
-use todos_options::TodosOptions;
+use todos_options::*;
 use todos_view::todos_view;
 
 use crate::auth::get_token;
@@ -52,7 +54,7 @@ impl CommandExecutor for Command {
     fn execute(&self, context: &mut CommandContext) {
         match self {
             Command::Login => login(context),
-            Command::Logout => logout(),
+            Command::Logout => logout(context),
             Command::Todos(todos_command) => todos_command.execute(context),
         }
     }
@@ -60,11 +62,11 @@ impl CommandExecutor for Command {
 
 #[derive(Subcommand)]
 enum TodosCommand {
-    View(TodosOptions),
+    View(TodosSelectOptions),
     List,
     Add(TodoAddCommand),
-    Complete(TodosOptions),
-    Delete(TodosOptions),
+    Complete(TodosSelectOptions),
+    Delete(TodosSelectOptions),
 }
 
 impl CommandExecutor for TodosCommand {
@@ -83,11 +85,19 @@ impl CommandExecutor for TodosCommand {
             }
         };
         match self {
-            TodosCommand::View(todos_options) => todos_view(todos_options),
+            TodosCommand::View(todos_options) => {
+                todos_view(todos_options, &context.config.todo_url, &access_token)
+            }
             TodosCommand::List => todos_list(&context.config.todo_url, &access_token),
-            TodosCommand::Add(todo_add_command) => todos_add(todo_add_command),
-            TodosCommand::Complete(todos_options) => todos_complete(todos_options),
-            TodosCommand::Delete(todos_options) => todos_delete(todos_options),
+            TodosCommand::Add(todo_add_command) => {
+                todos_add(todo_add_command, &context.config.todo_url, &access_token)
+            }
+            TodosCommand::Complete(todos_options) => {
+                todos_complete(todos_options, &context.config.todo_url, &access_token)
+            }
+            TodosCommand::Delete(todos_options) => {
+                todos_delete(todos_options, &context.config.todo_url, &access_token)
+            }
         }
     }
 }

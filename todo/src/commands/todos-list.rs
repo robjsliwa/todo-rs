@@ -1,34 +1,31 @@
+use super::Todo;
 use reqwest::blocking::Client;
-use serde::Deserialize;
-
-#[derive(Debug, Deserialize)]
-struct Todo {
-    id: String,
-    title: String,
-    completed: bool,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct TodoList {
-    todos: Vec<Todo>,
-}
 
 pub fn todos_list(url: &str, access_token: &str) {
-    println!("List command executed");
     let client = Client::new();
-    let token_endpoint = format!("{}/todos", url);
+    let todo_endpoint = format!("{}/todos", url);
 
     let resp = client
-        .get(token_endpoint)
+        .get(todo_endpoint)
         .header("Authorization", format! {"Bearer {}", access_token})
         .send();
 
     match resp {
         Ok(response) => {
-            let todos: TodoList = response.json().unwrap_or(TodoList::default());
+            let todos = match response.json::<Vec<Todo>>() {
+                Ok(resp) => resp,
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    return;
+                }
+            };
+            if todos.is_empty() {
+                println!("No todos found.");
+                return;
+            }
             println!("Todos:");
-            todos.todos.iter().for_each(|todo| {
-                println!("{}: {} - {}", todo.id, todo.title, todo.completed);
+            todos.iter().for_each(|todo| {
+                println!("{}: {} - {}", todo.id, todo.task, todo.completed);
             });
         }
         Err(e) => eprintln!("Error: {}", e),

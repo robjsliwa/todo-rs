@@ -8,3 +8,9 @@ pub struct TodosOptions {
     #[arg(long = "task-name", exclusive = true)]
     pub task_name: Option<String>,
 }
+
+#[derive(Parser, Debug)]
+pub struct TodosSelectOptions {
+    #[arg(long = "task-id")]
+    pub task_id: String,
+}

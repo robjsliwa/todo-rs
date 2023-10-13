@@ -1,13 +1,20 @@
-use crate::commands::todos_options::TodosOptions;
+use crate::commands::TodosSelectOptions;
+use reqwest::blocking::Client;
 
-pub fn todos_delete(options: &TodosOptions) {
-    let todo_value = options
-        .task_id
-        .as_ref()
-        .or(options.task_name.as_ref())
-        .unwrap_or_else(|| {
-            eprintln!("You must specify either a task-id or task-name");
-            std::process::exit(1);
-        });
-    println!("Delete command: {:?}", todo_value);
+pub fn todos_delete(options: &TodosSelectOptions, url: &str, access_token: &str) {
+    let task_id = options.task_id.clone();
+    let client = Client::new();
+    let todo_endpoint = format!("{}/todos/{}", url, task_id);
+
+    let resp = client
+        .delete(todo_endpoint)
+        .header("Authorization", format! {"Bearer {}", access_token})
+        .send();
+
+    match resp {
+        Ok(_) => {
+            println!("Todo deleted.");
+        }
+        Err(e) => eprintln!("Error: {}", e),
+    }
 }
