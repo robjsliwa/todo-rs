@@ -3,6 +3,7 @@ use crate::config::Config;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use spinners::{Spinner, Spinners};
+use std::time::{Duration, Instant};
 
 #[derive(Serialize, Deserialize)]
 struct DeviceAuthResponse {
@@ -43,8 +44,20 @@ pub fn login(config: &Config) -> Result<TokenResponse, Box<dyn std::error::Error
 
     let token_endpoint = format!("https://{}/oauth/token", config.domain);
 
+    let start_instant = Instant::now();
+    let expiry_duration = Duration::from_secs(device_auth_response.expires_in as u64);
+
     let mut sp = Spinner::new(Spinners::Dots9, "Polling for token".into());
+
     loop {
+        if Instant::now() >= start_instant + expiry_duration {
+            sp.stop();
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "Device code has expired",
+            )));
+        }
+
         let resp_result = client
             .post(&token_endpoint)
             .form(&[
