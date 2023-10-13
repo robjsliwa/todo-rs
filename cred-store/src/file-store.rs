@@ -34,62 +34,6 @@ impl Credentials {
             file_name: self.file_name.clone(),
         }
     }
-
-    pub fn load(&self) -> Result<Self, Error> {
-        let store_path = match dirs::home_dir() {
-            Some(path) => path.join(self.file_name.clone()),
-            None => {
-                return Err(Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "Home directory not found",
-                ))
-            }
-        };
-        if Path::new(&store_path).exists() {
-            let contents = fs::read_to_string(&store_path)?;
-            let data: HashMap<String, String> = serde_json::from_str(&contents)?;
-            Ok(Credentials {
-                data,
-                file_name: self.file_name.clone(),
-            })
-        } else {
-            Ok(Credentials {
-                data: HashMap::new(),
-                file_name: self.file_name.clone(),
-            })
-        }
-    }
-
-    pub fn save(&self) -> Result<(), Error> {
-        let store_path = match dirs::home_dir() {
-            Some(path) => path.join(self.file_name.clone()),
-            None => {
-                return Err(Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "Home directory not found",
-                ))
-            }
-        };
-        let contents = serde_json::to_string_pretty(&self.data)?;
-        fs::write(store_path, contents)?;
-        Ok(())
-    }
-
-    pub fn delete(&self) -> Result<(), Error> {
-        let store_path = match dirs::home_dir() {
-            Some(path) => path.join(self.file_name.clone()),
-            None => {
-                return Err(Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "Home directory not found",
-                ))
-            }
-        };
-        if Path::new(&store_path).exists() {
-            fs::remove_file(store_path)?;
-        }
-        Ok(())
-    }
 }
 
 impl Default for Credentials {
@@ -115,6 +59,62 @@ impl CredStore for Credentials {
 
     fn keys_present(&self, keys: &[String]) -> bool {
         keys.iter().all(|key| self.data.contains_key(key))
+    }
+
+    fn load(&self) -> Result<Self, Error> {
+        let store_path = match dirs::home_dir() {
+            Some(path) => path.join(self.file_name.clone()),
+            None => {
+                return Err(Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "Home directory not found",
+                ))
+            }
+        };
+        if Path::new(&store_path).exists() {
+            let contents = fs::read_to_string(&store_path)?;
+            let data: HashMap<String, String> = serde_json::from_str(&contents)?;
+            Ok(Credentials {
+                data,
+                file_name: self.file_name.clone(),
+            })
+        } else {
+            Ok(Credentials {
+                data: HashMap::new(),
+                file_name: self.file_name.clone(),
+            })
+        }
+    }
+
+    fn save(&self) -> Result<(), Error> {
+        let store_path = match dirs::home_dir() {
+            Some(path) => path.join(self.file_name.clone()),
+            None => {
+                return Err(Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "Home directory not found",
+                ))
+            }
+        };
+        let contents = serde_json::to_string_pretty(&self.data)?;
+        fs::write(store_path, contents)?;
+        Ok(())
+    }
+
+    fn delete(&self) -> Result<(), Error> {
+        let store_path = match dirs::home_dir() {
+            Some(path) => path.join(self.file_name.clone()),
+            None => {
+                return Err(Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "Home directory not found",
+                ))
+            }
+        };
+        if Path::new(&store_path).exists() {
+            fs::remove_file(store_path)?;
+        }
+        Ok(())
     }
 }
 

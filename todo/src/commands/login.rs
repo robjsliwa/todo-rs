@@ -14,10 +14,10 @@ struct UserInfo {
     tenant_id: String,
 }
 
-fn save_tokens(
+fn save_tokens<T: CredStore>(
     access_token: &str,
     refresh_token: &str,
-    context: &mut CommandContext,
+    context: &mut CommandContext<T>,
 ) -> Result<(), std::io::Error> {
     context
         .cred_store
@@ -42,7 +42,7 @@ fn get_userinfo(url: &str, access_token: &str) -> Result<UserInfo, Box<dyn std::
     Ok(userinfo)
 }
 
-pub fn login(context: &mut CommandContext) {
+pub fn login<T: CredStore>(context: &mut CommandContext<T>) {
     match auth::login(context.config) {
         Ok(resp) => {
             let access_token = resp.access_token.clone().unwrap();

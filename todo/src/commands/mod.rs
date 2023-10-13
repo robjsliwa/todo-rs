@@ -34,6 +34,7 @@ use todos_view::todos_view;
 
 use crate::auth::get_token;
 use clap::{Parser, Subcommand};
+use cred_store::CredStore;
 
 #[derive(Parser)]
 #[clap(author, version, about = "A command line tool for managing todos")]
@@ -50,8 +51,8 @@ enum Command {
     Todos(TodosCommand),
 }
 
-impl CommandExecutor for Command {
-    fn execute(&self, context: &mut CommandContext) {
+impl<T: CredStore> CommandExecutor<T> for Command {
+    fn execute(&self, context: &mut CommandContext<T>) {
         match self {
             Command::Login => login(context),
             Command::Logout => logout(context),
@@ -69,8 +70,8 @@ enum TodosCommand {
     Delete(TodosSelectOptions),
 }
 
-impl CommandExecutor for TodosCommand {
-    fn execute(&self, context: &mut CommandContext) {
+impl<T: CredStore> CommandExecutor<T> for TodosCommand {
+    fn execute(&self, context: &mut CommandContext<T>) {
         let access_token = match get_token(context) {
             Ok(token) => match token {
                 Some(token) => token,
@@ -102,7 +103,7 @@ impl CommandExecutor for TodosCommand {
     }
 }
 
-pub fn invoke_command(context: &mut CommandContext) {
+pub fn invoke_command<T: CredStore>(context: &mut CommandContext<T>) {
     let cli = Cli::parse();
     cli.command.execute(context);
 }

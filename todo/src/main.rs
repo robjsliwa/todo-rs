@@ -1,6 +1,6 @@
 use crate::commands::{invoke_command, CommandContext};
 use crate::config::Config;
-use cred_store::Credentials;
+use cred_store::{CredStore, Credentials};
 
 mod auth;
 mod commands;

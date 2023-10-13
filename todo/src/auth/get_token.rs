@@ -61,8 +61,8 @@ pub fn refresh_access_token(
     }
 }
 
-pub fn get_token(
-    context: &mut CommandContext,
+pub fn get_token<T: CredStore>(
+    context: &mut CommandContext<T>,
 ) -> Result<Option<String>, Box<dyn std::error::Error>> {
     let mut credentials = context.cred_store.load()?;
     let access_token = credentials.get("access_token").cloned();
