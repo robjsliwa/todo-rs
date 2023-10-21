@@ -10,7 +10,8 @@ services:
     working_dir: /usr/src/todo
     environment:
       - USER=$USER
-      - JWT_SECRET=$JWT_SECRET
+      - AUTH0_DOMAIN=$AUTH0_DOMAIN
+      - AUTH0_AUDIENCE=$AUTH0_AUDIENCE
       - TODO_ADDR=$TODO_ADDR
       - TODO_PORT=$TODO_PORT
       - MONGO_URI=$MONGO_URI

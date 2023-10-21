@@ -1,10 +1,12 @@
-use crate::auth::with_jwt;
+use crate::auth::{with_decoded, with_jwt, UserCache};
 use crate::routes::router;
-use crate::storage::{store::TodoStore, MongoStore};
+use crate::storage::{MongoStore, TodoStore};
+use jwtverifier::JwtVerifier;
 use log::{error, info};
 use std::env;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::num::NonZeroUsize;
+use std::sync::{Arc, Mutex};
 
 mod auth;
 mod error;
@@ -12,11 +14,12 @@ mod model;
 mod routes;
 mod storage;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Config {
-    jwt_secret: String,
     server_addr: SocketAddr,
     mongo_uri: String,
+    domain: String,
+    audience: String,
 }
 
 impl Config {
@@ -24,7 +27,8 @@ impl Config {
         const DEFAULT_ADDR: &str = "0.0.0.0";
         const DEFAULT_PORT: &str = "3030";
         let mongo_uri = env::var("MONGO_URI")?;
-        let jwt_secret = env::var("JWT_SECRET")?;
+        let domain = env::var("AUTH0_DOMAIN")?;
+        let audience = env::var("AUTH0_AUDIENCE")?;
         let ip_address = env::var("TODO_ADDR")
             .map(|s| {
                 if s.is_empty() {
@@ -47,9 +51,10 @@ impl Config {
         let server_addr = full_addr.parse().map_err(|_| env::VarError::NotPresent)?;
 
         Ok(Self {
-            jwt_secret,
             server_addr,
             mongo_uri,
+            domain,
+            audience,
         })
     }
 }
@@ -67,11 +72,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         });
     let store: Arc<dyn TodoStore> = Arc::new(mongo_store.clone());
+    let cache: Arc<Mutex<UserCache>> =
+        Arc::new(Mutex::new(UserCache::new(NonZeroUsize::new(20).unwrap())));
     let store_for_routes = store.clone();
+    let jwt_verifier = JwtVerifier::new(&config.domain)
+        .use_cache(true)
+        .validate_aud(&config.audience)
+        .build();
+    let with_jwt_middleware = with_jwt(jwt_verifier.clone(), store.clone(), cache);
+    let with_decoded_middleware = with_decoded(jwt_verifier, config.domain.clone());
+
     info!("Server started at {}", config.server_addr);
 
     tokio::select! {
-        _ = warp::serve(router(store_for_routes, with_jwt(config.jwt_secret))).run(config.server_addr) => {
+        _ = warp::serve(router(store_for_routes, with_jwt_middleware, with_decoded_middleware)).run(config.server_addr) => {
             info!("Server shutting down...");
         }
         _ = tokio::signal::ctrl_c() => {

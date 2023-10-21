@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::model::todo::{NewTodo, Todo, UpdateTodo};
+use crate::model::{NewTodo, Todo, UpdateTodo, User};
 use crate::storage::store::{TodoStore, UserContext};
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -109,6 +109,19 @@ impl TodoStore for MemStore {
                 return Ok(data.remove(&id));
             }
         }
+        Err(Error::NotFound)
+    }
+
+    async fn create_user(
+        &self,
+        _external_id: String,
+        _name: String,
+        _email: String,
+    ) -> Result<User, Error> {
+        Err(Error::NotFound)
+    }
+
+    async fn get_user(&self, _external_user_id: String) -> Result<Option<User>, Error> {
         Err(Error::NotFound)
     }
 }

@@ -1,7 +1,7 @@
 use super::*;
+use crate::auth::UserInfo;
 use crate::error::return_error;
-use crate::storage::TodoStore;
-use crate::storage::UserContext;
+use crate::storage::{TodoStore, UserContext};
 use std::sync::Arc;
 use uuid::Uuid;
 use warp::{http::Method, Filter, Rejection};
@@ -9,6 +9,7 @@ use warp::{http::Method, Filter, Rejection};
 pub fn router(
     store: Arc<dyn TodoStore>,
     with_jwt: impl Filter<Extract = (UserContext,), Error = Rejection> + Clone + Send + Sync + 'static,
+    with_decoded: impl Filter<Extract = (UserInfo,), Error = Rejection> + Clone + Send + Sync + 'static,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let with_store = warp::any().map(move || store.clone());
 
@@ -54,17 +55,26 @@ pub fn router(
         .and(with_store.clone())
         .and_then(delete_todo);
 
+    let userinfor_route = warp::get()
+        .and(warp::path("userinfo"))
+        .and(warp::path::end())
+        .and(with_decoded)
+        .and(with_store)
+        .and_then(user_info);
+
     get_todo_route
         .or(get_todos_route)
         .or(add_todo_route)
         .or(update_todo_route)
         .or(delete_todo_route)
+        .or(userinfor_route)
         .with(cors)
         .recover(return_error)
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::auth::UserInfo;
     use crate::error::Error;
     use crate::model::Todo;
     use crate::storage::UserContext;
@@ -87,6 +97,16 @@ mod tests {
             )
     }
 
+    fn with_mock_decode(
+        userinfo: UserInfo,
+    ) -> impl Filter<Extract = (UserInfo,), Error = Rejection> + Clone {
+        warp::header::headers_cloned()
+            .map(move |headers: HeaderMap| (headers.clone(), userinfo.clone()))
+            .and_then(|(_headers, claims): (HeaderMap, UserInfo)| async move {
+                Ok::<UserInfo, Rejection>(claims)
+            })
+    }
+
     #[tokio::test]
     async fn test_add_todo() {
         let store = Arc::new(crate::storage::MemStore::new("test.json".to_string()));
@@ -94,7 +114,11 @@ mod tests {
             tenant_id: "1".to_string(),
             user_id: "1".to_string(),
         };
-        let route = super::router(store, with_mock_jwt(user_context, true));
+        let route = super::router(
+            store,
+            with_mock_jwt(user_context, true),
+            with_mock_decode(UserInfo::default()),
+        );
         let resp = warp::test::request()
             .method("POST")
             .path("/todos")
@@ -114,7 +138,11 @@ mod tests {
             tenant_id: "1".to_string(),
             user_id: "1".to_string(),
         };
-        let route = super::router(store, with_mock_jwt(user_context, true));
+        let route = super::router(
+            store,
+            with_mock_jwt(user_context, true),
+            with_mock_decode(UserInfo::default()),
+        );
 
         let resp = warp::test::request()
             .method("POST")
@@ -156,7 +184,11 @@ mod tests {
             tenant_id: "1".to_string(),
             user_id: "1".to_string(),
         };
-        let route = super::router(store, with_mock_jwt(user_context, true));
+        let route = super::router(
+            store,
+            with_mock_jwt(user_context, true),
+            with_mock_decode(UserInfo::default()),
+        );
         let resp = warp::test::request()
             .method("GET")
             .path("/todos/00000000-0000-0000-0000-000000000000")
@@ -172,7 +204,11 @@ mod tests {
             tenant_id: "1".to_string(),
             user_id: "1".to_string(),
         };
-        let route = super::router(store, with_mock_jwt(user_context, true));
+        let route = super::router(
+            store,
+            with_mock_jwt(user_context, true),
+            with_mock_decode(UserInfo::default()),
+        );
 
         let resp = warp::test::request()
             .method("POST")
@@ -226,7 +262,11 @@ mod tests {
             tenant_id: "1".to_string(),
             user_id: "1".to_string(),
         };
-        let route = super::router(store, with_mock_jwt(user_context, true));
+        let route = super::router(
+            store,
+            with_mock_jwt(user_context, true),
+            with_mock_decode(UserInfo::default()),
+        );
         let resp = warp::test::request()
             .method("PATCH")
             .path("/todos/00000000-0000-0000-0000-000000000000")
@@ -246,7 +286,11 @@ mod tests {
             tenant_id: "1".to_string(),
             user_id: "1".to_string(),
         };
-        let route = super::router(store, with_mock_jwt(user_context, true));
+        let route = super::router(
+            store,
+            with_mock_jwt(user_context, true),
+            with_mock_decode(UserInfo::default()),
+        );
 
         let resp = warp::test::request()
             .method("POST")
@@ -294,7 +338,11 @@ mod tests {
             tenant_id: "1".to_string(),
             user_id: "1".to_string(),
         };
-        let route = super::router(store, with_mock_jwt(user_context, true));
+        let route = super::router(
+            store,
+            with_mock_jwt(user_context, true),
+            with_mock_decode(UserInfo::default()),
+        );
         let resp = warp::test::request()
             .method("DELETE")
             .path("/todos/00000000-0000-0000-0000-000000000000")
@@ -310,7 +358,11 @@ mod tests {
             tenant_id: "1".to_string(),
             user_id: "1".to_string(),
         };
-        let route = super::router(store, with_mock_jwt(user_context, true));
+        let route = super::router(
+            store,
+            with_mock_jwt(user_context, true),
+            with_mock_decode(UserInfo::default()),
+        );
 
         let resp = warp::test::request()
             .method("POST")

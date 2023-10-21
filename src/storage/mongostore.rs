@@ -1,11 +1,12 @@
 use crate::error::Error;
-use crate::model::todo::{NewTodo, Todo, UpdateTodo};
+use crate::model::{NewTodo, Todo, UpdateTodo, User};
 use crate::storage::store::{TodoStore, UserContext};
 use async_trait::async_trait;
 use futures::stream::TryStreamExt;
 use log::{error, info};
 use mongodb::bson::{doc, Document};
 use mongodb::{Client, Collection};
+use uuid::Uuid;
 
 const DB_NAME: &str = "todo";
 
@@ -45,19 +46,24 @@ async fn mongo_result<T>(
 #[derive(Debug, Clone)]
 pub struct MongoStore {
     todo_col: Collection<Todo>,
+    user_col: Collection<User>,
 }
 
 impl MongoStore {
     pub async fn init(mongo_uri: String) -> Result<Self, Box<dyn std::error::Error>> {
-        let todo_col: Collection<Todo> = Self::connect(mongo_uri).await?;
-        Ok(Self { todo_col })
+        let (todo_col, user_col): (Collection<Todo>, Collection<User>) =
+            Self::connect(mongo_uri).await?;
+        Ok(Self { todo_col, user_col })
     }
 
-    async fn connect(mongo_uri: String) -> Result<Collection<Todo>, Box<dyn std::error::Error>> {
+    async fn connect(
+        mongo_uri: String,
+    ) -> Result<(Collection<Todo>, Collection<User>), Box<dyn std::error::Error>> {
         let client = Client::with_uri_str(mongo_uri).await?;
         let db = client.database(DB_NAME);
-        let col: Collection<Todo> = db.collection("Todos");
-        Ok(col)
+        let todo_col: Collection<Todo> = db.collection("Todos");
+        let user_col: Collection<User> = db.collection("Users");
+        Ok((todo_col, user_col))
     }
 }
 
@@ -131,5 +137,31 @@ impl TodoStore for MongoStore {
         };
         let result = self.todo_col.find_one_and_delete(filter, None).await;
         mongo_result(result, "delete todo").await
+    }
+
+    async fn create_user(
+        &self,
+        external_id: String,
+        name: String,
+        email: String,
+    ) -> Result<User, Error> {
+        let user = User::new(external_id, name, email, Uuid::new_v4().to_string());
+        self.user_col
+            .insert_one(user.clone(), None)
+            .await
+            .map_err(|e| {
+                error!("Failed to insert user: {:?}", e);
+                Error::DatabaseOperationFailed(format!("Failed to insert user: {:?}", e))
+            })?;
+        info!("Added user: {:?}", user);
+        Ok(user)
+    }
+
+    async fn get_user(&self, external_user_id: String) -> Result<Option<User>, Error> {
+        let filter = doc! {
+            "external_id": external_user_id,
+        };
+        let result = self.user_col.find_one(filter, None).await;
+        mongo_result(result, "get user").await
     }
 }
