@@ -1,9 +1,6 @@
 version: "3"
 services:
   todo:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
     image: todo
     volumes:
       - .:/usr/src/todo
@@ -21,7 +18,7 @@ services:
       - mongodb
   
   mongodb:
-    image: "mongodb/mongodb-community-server:6.0-ubi8"
+    image: "mongodb/mongodb-community-server"
     ports:
       - 27017:27017
     volumes:
