@@ -2,9 +2,6 @@ version: "3"
 services:
   todo:
     image: todo
-    volumes:
-      - .:/usr/src/todo
-    working_dir: /usr/src/todo
     environment:
       - USER=$USER
       - AUTH0_DOMAIN=$AUTH0_DOMAIN

@@ -1,4 +1,4 @@
-docker_build('todo', '.', ignore=['target'],
+docker_build('todo', '.', ignore=['target', 'todo'],
     dockerfile='./Dockerfile.dev',
     live_update=[
         sync('.', '/app'),
