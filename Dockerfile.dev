@@ -1,15 +1,15 @@
 FROM rust:1.72.0
 
+EXPOSE 3030
+
 RUN cargo install cargo-watch
 
-# Updaget the apt package index and install wget
-RUN apt-get update
-RUN apt-get install -y wget
+WORKDIR /app
 
-# MongoDB
-RUN wget -qO - "https://www.mongodb.org/static/pgp/server-6.0.asc" | apt-key add -
-RUN echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/6.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-5.0.list
-RUN apt-get update
-RUN apt-get install -y mongodb-mongosh
+RUN cargo init .
+ADD Cargo.toml .
+ADD Cargo.lock .
 
-WORKDIR /usr/src/todo
+ADD . .
+
+ENTRYPOINT [ "cargo", "watch", "-x", "run" ]
