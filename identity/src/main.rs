@@ -43,6 +43,7 @@ async fn healthz_handler() -> Result<impl Reply, Rejection> {
 
 #[tokio::main]
 async fn main() {
+    // This is just placeholder service for Tilt demonstration.
     env_logger::init();
 
     let config = Config::from_env().expect("Failed to load configuration");
