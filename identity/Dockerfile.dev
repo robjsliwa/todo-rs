@@ -1,0 +1,15 @@
+FROM rust:1.72.0
+
+EXPOSE 3031
+
+RUN cargo install cargo-watch
+
+WORKDIR /app
+
+RUN cargo init .
+ADD Cargo.toml .
+ADD Cargo.lock .
+
+ADD . .
+
+ENTRYPOINT [ "cargo", "watch", "-x", "run" ]

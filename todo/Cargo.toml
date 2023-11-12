@@ -1,18 +1,23 @@
 [package]
-name = "todo"
+name = "todo-rs"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "4.4.2", features = ["derive"] }
+tokio = { version = "1.2", features = ["full"] }
+warp = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-open = "1.7"
-reqwest = { version = "0.11", features = ["blocking", "json"] }
-dotenv = "0.15.0"
-spinners = "4.1.0"
-cred-store = { path = "../cred-store" }
-base64 = "0.21.4"
-chrono = "0.4.31"
+uuid = { version = "1.4.1", features = ["serde", "v4"] }
+async-trait = "0.1.73"
+jsonwebtoken = "8.3.0"
+log = "0.4.20"
+env_logger = "0.10.0"
+mongodb = "2.6.1"
+futures = "0.3.28"
+jwtverifier = { path = "../jwtverifier" }
+lru = "0.12.0"
+reqwest = "0.11.22"
+

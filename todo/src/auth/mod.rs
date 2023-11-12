@@ -1,7 +1,13 @@
-pub mod get_token;
-pub mod login;
-pub mod token_response;
+pub mod cache;
+pub mod claims;
+pub mod token_from_header;
+pub mod userinfo;
+pub mod with_decoded;
+pub mod with_jwt;
 
-pub use get_token::*;
-pub use login::*;
-pub use token_response::*;
+pub use cache::*;
+pub use claims::*;
+pub use token_from_header::*;
+pub use userinfo::*;
+pub use with_decoded::*;
+pub use with_jwt::*;

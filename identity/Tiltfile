@@ -1,0 +1,5 @@
+docker_build('identity', '.', ignore=['target'],
+    dockerfile='./Dockerfile.dev',
+    live_update=[
+        sync('.', '/app'),
+])
