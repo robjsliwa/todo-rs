@@ -1,5 +1,10 @@
 version: "3"
 services:
+  identity:
+    image: identity
+    ports:
+      - 3031:3031
+
   todo:
     image: todo
     environment:
@@ -13,6 +18,9 @@ services:
       - 3030:3030 
     depends_on:
       - mongodb
+      - identity
+    volumes:
+      - ./jwtverifier:/jwtverifier
   
   mongodb:
     image: "mongodb/mongodb-community-server"
